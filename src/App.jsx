@@ -14,21 +14,18 @@ const firebaseConfig = {
   measurementId: "G-JXKR1JSF24"
 };
 
-// 1. Initialize Firebase Services safely with fallback for preview environment
+// 1. Initialize Firebase Services using your configuration with fallback
 let app = null;
 let auth = null;
 let db = null;
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-run-of-show-app';
 
 try {
-  if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-    const firebaseConfig = JSON.parse(__firebase_config);
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-  }
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
 } catch (e) {
-  console.log("Running in offline/local fallback mode");
+  console.log("Running in offline/local fallback mode due to initialization error:", e);
 }
 
 export default function App() {
