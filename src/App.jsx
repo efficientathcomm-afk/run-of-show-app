@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 
-// Firebase Configuration
+// Exact Firebase project configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAgf7qX4HarmphjjhhTcj0m_mW5SzYYGMk",
   authDomain: "run-of-show-790f7.firebaseapp.com",
@@ -14,7 +14,9 @@ const firebaseConfig = {
   measurementId: "G-JXKR1JSF24"
 };
 
-let app, auth, db;
+let app = null;
+let auth = null;
+let db = null;
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'run-of-show-v2';
 
 try {
@@ -70,12 +72,12 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Cloud Data Synchronization (Firestore)
+  // 2. Cloud Data Synchronization (Firestore) with Corrected Even-Segment Document Paths
   useEffect(() => {
     if (!user || !db) return;
 
-    // Listen to Shows List Index
-    const indexRef = doc(db, 'artifacts', appId, 'public', 'data', 'shows_index');
+    // Listen to Shows List Index (Even path segments: artifacts / {appId} / public / shows_index)
+    const indexRef = doc(db, 'artifacts', appId, 'public', 'shows_index');
     const unsubIndex = onSnapshot(indexRef, (snap) => {
       if (snap.exists()) {
         const list = snap.data().shows || [];
@@ -90,8 +92,8 @@ export default function App() {
       }
     }, (err) => console.error("Index sync error:", err));
 
-    // Listen to Segment Repository
-    const repoRef = doc(db, 'artifacts', appId, 'public', 'data', 'segment_repo');
+    // Listen to Segment Repository (Even path segments: artifacts / {appId} / public / segment_repo)
+    const repoRef = doc(db, 'artifacts', appId, 'public', 'segment_repo');
     const unsubRepo = onSnapshot(repoRef, (snap) => {
       if (snap.exists()) {
         setSegmentRepo(snap.data().items || []);
@@ -104,18 +106,18 @@ export default function App() {
     };
   }, [user]);
 
-  // 3. Listen to Active Show Document Changes
+  // 3. Listen to Active Show Document Changes (Even path segments: artifacts / {appId} / public / show_{id})
   useEffect(() => {
     if (!user || !activeShowId || !db) return;
 
-    const showRef = doc(db, 'artifacts', appId, 'public', 'data', `show_${activeShowId}`);
+    const showRef = doc(db, 'artifacts', appId, 'public', `show_${activeShowId}`);
     const unsubShow = onSnapshot(showRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setShowTitle(data.showTitle || "Untitled Production");
-        setStartTime(data.startTime || "09:00:00");
-        setCustomColumns(data.customColumns || ["Audio / Cues", "Video / Slides"]);
-        setRundown(data.rundown || []);
+        setShowTitle(typeof data.showTitle === 'string' ? data.showTitle : "Untitled Production");
+        setStartTime(typeof data.startTime === 'string' ? data.startTime : "09:00:00");
+        setCustomColumns(Array.isArray(data.customColumns) ? data.customColumns : ["Audio / Cues", "Video / Slides"]);
+        setRundown(Array.isArray(data.rundown) ? data.rundown : []);
       }
     }, (err) => console.error("Show sync error:", err));
 
@@ -195,8 +197,8 @@ export default function App() {
 
     if (user && db) {
       try {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', `show_${activeShowId}`), showPayload);
-        const indexRef = doc(db, 'artifacts', appId, 'public', 'data', 'shows_index');
+        await setDoc(doc(db, 'artifacts', appId, 'public', `show_${activeShowId}`), showPayload);
+        const indexRef = doc(db, 'artifacts', appId, 'public', 'shows_index');
         const indexSnap = await getDoc(indexRef);
         let list = indexSnap.exists() ? (indexSnap.data().shows || []) : [];
         const idx = list.findIndex(s => s.id === activeShowId);
@@ -236,9 +238,9 @@ export default function App() {
     };
 
     if (user && db) {
-      setDoc(doc(db, 'artifacts', appId, 'public', 'data', `show_${newId}`), newShow).then(() => {
+      setDoc(doc(db, 'artifacts', appId, 'public', `show_${newId}`), newShow).then(() => {
         const updated = [...showsList, { id: newId, title: name, updatedAt: new Date().toISOString() }];
-        setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shows_index'), { shows: updated });
+        setDoc(doc(db, 'artifacts', appId, 'public', 'shows_index'), { shows: updated });
         setActiveShowId(newId);
         setCurrentView("editor");
       });
@@ -253,7 +255,7 @@ export default function App() {
     if (!window.confirm("Are you sure you want to delete this show rundown?")) return;
     const updated = showsList.filter(s => s.id !== id);
     if (user && db) {
-      setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shows_index'), { shows: updated }).then(() => {
+      setDoc(doc(db, 'artifacts', appId, 'public', 'shows_index'), { shows: updated }).then(() => {
         if (activeShowId === id && updated.length > 0) setActiveShowId(updated[0].id);
       });
     } else {
@@ -404,7 +406,7 @@ export default function App() {
     const updatedRepo = [...segmentRepo, repoItem];
     setSegmentRepo(updatedRepo);
     if (user && db) {
-      setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'segment_repo'), { items: updatedRepo })
+      setDoc(doc(db, 'artifacts', appId, 'public', 'segment_repo'), { items: updatedRepo })
         .then(() => alert("Segment saved to Reusable Repository!"));
     } else {
       localStorage.setItem("ros_repo", JSON.stringify(updatedRepo));
@@ -562,7 +564,7 @@ export default function App() {
                         onClick={() => {
                           const updated = segmentRepo.filter(i => i.id !== item.id);
                           setSegmentRepo(updated);
-                          if (user && db) setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'segment_repo'), { items: updated });
+                          if (user && db) setDoc(doc(db, 'artifacts', appId, 'public', 'segment_repo'), { items: updated });
                           else localStorage.setItem("ros_repo", JSON.stringify(updated));
                         }} 
                         className="text-rose-500 hover:text-rose-700 text-xs font-bold"
