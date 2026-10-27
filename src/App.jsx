@@ -51,7 +51,7 @@ export default function App() {
   const prompterRef = useRef(null);
   const scrollTimerRef = useRef(null);
 
-  // 1. Firebase Auth Initialization
+  // 1. Firebase Auth Initialization (Strictly awaiting sign-in before allowing writes)
   useEffect(() => {
     if (!auth) {
       setSyncStatus("💾 Local Mode");
@@ -59,11 +59,15 @@ export default function App() {
       return;
     }
 
-    signInAnonymously(auth).catch((err) => {
-      console.warn("Auth warning:", err);
-      setSyncStatus("⚠️ Local Fallback Mode");
-      loadLocalFallback();
-    });
+    signInAnonymously(auth)
+      .then(() => {
+        setSyncStatus("🟢 Authenticated & Syncing");
+      })
+      .catch((err) => {
+        console.warn("Auth warning:", err);
+        setSyncStatus("⚠️ Local Fallback Mode");
+        loadLocalFallback();
+      });
 
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -90,7 +94,10 @@ export default function App() {
       } else {
         createDefaultShow();
       }
-    }, (err) => console.error("Index sync error:", err));
+    }, (err) => {
+      console.error("Index sync error:", err);
+      setSyncStatus("⚠️ Permission Error - Check Firestore Rules");
+    });
 
     // Listen to Segment Repository (Even path segments: artifacts / {appId} / public / segment_repo)
     const repoRef = doc(db, 'artifacts', appId, 'public', 'segment_repo');
@@ -210,7 +217,7 @@ export default function App() {
         }
         await setDoc(indexRef, { shows: list });
       } catch (err) {
-        console.error("Cloud persist error:", err);
+        console.error("Cloud persist error (Permission check required):", err);
       }
     } else {
       try {
@@ -243,6 +250,9 @@ export default function App() {
         setDoc(doc(db, 'artifacts', appId, 'public', 'shows_index'), { shows: updated });
         setActiveShowId(newId);
         setCurrentView("editor");
+      }).catch(err => {
+        console.error("Create show permission error:", err);
+        alert("Permission denied. Please verify your Firestore security rules allow write access.");
       });
     } else {
       createNewShowLocal(name);
@@ -407,7 +417,8 @@ export default function App() {
     setSegmentRepo(updatedRepo);
     if (user && db) {
       setDoc(doc(db, 'artifacts', appId, 'public', 'segment_repo'), { items: updatedRepo })
-        .then(() => alert("Segment saved to Reusable Repository!"));
+        .then(() => alert("Segment saved to Reusable Repository!"))
+        .catch(err => alert("Permission denied saving to repo. Check Firestore rules."));
     } else {
       localStorage.setItem("ros_repo", JSON.stringify(updatedRepo));
       alert("Segment saved to Reusable Repository!");
