@@ -53,7 +53,7 @@ function AutoTextarea({ value, onChange, placeholder, className, rows = 1 }) {
 export default function App() {
   const [user, setUser] = useState(null);
   const [syncStatus, setSyncStatus] = useState("Connecting...");
-  const [currentView, setCurrentView] = useState("editor"); // "editor" | "list" | "repo" | "prompter"
+  const [currentView, setCurrentView] = useState("editor"); // "editor" | "list" | "repo" | "prompter" | "producer"
   const [themeMode, setThemeMode] = useState("dark"); // "dark" | "light"
   
   // Production Shows List State
@@ -77,11 +77,11 @@ export default function App() {
   // Live Production Clocks State
   const [currentTimeStr, setCurrentTimeStr] = useState("");
 
-  // Teleprompter State
+  // Teleprompter & Producer Mode State
   const [isPrompterPlaying, setIsPrompterPlaying] = useState(false);
   const [prompterSpeed, setPrompterSpeed] = useState(3);
-  const [prompterFontSize, setPrompterFontSize] = useState(32); // px
-  const [activePrompterIndex, setActivePrompterIndex] = useState(0); // Producer Mode active cue
+  const [prompterFontSize, setPrompterFontSize] = useState(36); // px
+  const [activeProducerIndex, setActiveProducerIndex] = useState(0); // Producer Mode active cue
   const prompterRef = useRef(null);
   const scrollTimerRef = useRef(null);
 
@@ -493,14 +493,12 @@ export default function App() {
       customValues: item.customValues || []
     };
     
-    // Attach repoId back to the active show item so it knows it's linked
-    const updatedRundown = rundown.map((seg, idx) => {
+    const updatedRundown = rundown.map((seg) => {
       if (seg === item) return { ...seg, repoId: repoItem.id };
       return seg;
     });
     setRundown(updatedRundown);
 
-    // Check if repo item already exists
     const existingIdx = segmentRepo.findIndex(r => r.id === repoItem.id);
     let updatedRepo;
     if (existingIdx >= 0) {
@@ -543,27 +541,40 @@ export default function App() {
     persistShow(showTitle, startTime, customColumns, updated);
   };
 
-  const updateRepoItemInCloudAndLocal = async (updatedItem) => {
-    const updatedRepo = segmentRepo.map(i => i.id === updatedItem.id ? updatedItem : i);
+  const updateRepoItemMaster = async (updatedRepoItem, syncToActiveShow = false) => {
+    const updatedRepo = segmentRepo.map(i => i.id === updatedRepoItem.id ? updatedRepoItem : i);
     setSegmentRepo(updatedRepo);
     setEditingRepoItem(null);
+
+    if (syncToActiveShow) {
+      const updatedRundown = rundown.map(item => {
+        if (item.repoId === updatedRepoItem.id) {
+          return {
+            ...item,
+            title: updatedRepoItem.title,
+            talent: updatedRepoItem.talent,
+            min: updatedRepoItem.min,
+            sec: updatedRepoItem.sec,
+            script: updatedRepoItem.script
+          };
+        }
+        return item;
+      });
+      setRundown(updatedRundown);
+      persistShow(showTitle, startTime, customColumns, updatedRundown);
+    }
 
     if (user && db) {
       try {
         await setDoc(doc(db, 'artifacts', appId, 'public', 'segment_repo'), { items: updatedRepo });
+        alert("Master segment updated successfully!");
       } catch (e) {
         console.error("Repo update error:", e);
       }
     } else {
       localStorage.setItem("ros_repo_v4", JSON.stringify(updatedRepo));
+      alert("Master segment updated successfully!");
     }
-  };
-
-  // Count how many shows contain a given repository item
-  const getLinkedShowsCount = (repoId) => {
-    // In a full multi-show check, we count occurrences or list show titles
-    // Here we can return active or saved shows tracking
-    return showsList.length; // Simplified for active workspace context
   };
 
   // Teleprompter Auto-Scroll
@@ -594,7 +605,7 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg md:text-xl font-black tracking-tight text-white">Run of Show Studio</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v4.2</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v4.3</span>
             </div>
             <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -639,12 +650,20 @@ export default function App() {
             📚 Segment Library ({segmentRepo.length})
           </button>
           {activeShowId && (
-            <button 
-              onClick={() => { setActivePrompterIndex(0); setCurrentView("prompter"); }} 
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
-            >
-              📺 Teleprompter
-            </button>
+            <>
+              <button 
+                onClick={() => { setActiveProducerIndex(0); setCurrentView("producer"); }} 
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30 flex items-center gap-1.5"
+              >
+                ⏱️ Producer View
+              </button>
+              <button 
+                onClick={() => { setActiveProducerIndex(0); setCurrentView("prompter"); }} 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
+              >
+                📺 Teleprompter
+              </button>
+            </>
           )}
           <button 
             onClick={() => setThemeMode(isDark ? 'light' : 'dark')}
@@ -694,12 +713,20 @@ export default function App() {
                 </div>
                 <div className="flex items-center justify-between pt-3 border-t border-slate-800/10">
                   <span className="text-xs font-bold text-blue-500">Open Studio →</span>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setActiveShowId(show.id); setActivePrompterIndex(0); setCurrentView("prompter"); }}
-                    className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-1 rounded-lg font-bold transition"
-                  >
-                    📺 Prompter
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setActiveShowId(show.id); setActiveProducerIndex(0); setCurrentView("producer"); }}
+                      className="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs px-2.5 py-1 rounded-lg font-bold transition"
+                    >
+                      ⏱️ Producer
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setActiveShowId(show.id); setActiveProducerIndex(0); setCurrentView("prompter"); }}
+                      className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-1 rounded-lg font-bold transition"
+                    >
+                      📺 Prompter
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -707,13 +734,13 @@ export default function App() {
         </main>
       )}
 
-      {/* VIEW 2: REUSABLE SEGMENT LIBRARY WITH EDIT & GLOBAL SYNC */}
+      {/* VIEW 2: SEGMENT LIBRARY WITH MASTER EDIT & SYNC */}
       {currentView === "repo" && (
         <main className="max-w-6xl mx-auto animate-fade-in">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
               <h2 className="text-2xl font-black">Reusable Segment Repository</h2>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Edit shared segments globally and push updates across all shows or insert into new productions.</p>
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Edit shared segments globally and push updates across all connected shows.</p>
             </div>
             <input 
               type="text" 
@@ -739,13 +766,13 @@ export default function App() {
                     <div className="flex justify-between items-start gap-2 mb-2">
                       <div className="flex items-center gap-2">
                         <h4 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.title}</h4>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">Linked Library Segment</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">Master Segment</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <button 
                           onClick={() => setEditingRepoItem({ ...item })} 
                           className="w-7 h-7 rounded-full bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold transition"
-                          title="Edit Segment"
+                          title="Edit Master Segment"
                         >
                           ✏️
                         </button>
@@ -788,15 +815,15 @@ export default function App() {
             </div>
           )}
 
-          {/* EDIT REPO ITEM MODAL */}
+          {/* EDIT REPO ITEM MODAL WITH SYNC OPTION */}
           {editingRepoItem && (
             <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
               <div className={`${isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'} border rounded-2xl p-6 w-full max-w-lg shadow-2xl flex flex-col gap-4`}>
                 <div className="flex justify-between items-center pb-3 border-b border-slate-800">
-                  <h3 className="font-black text-base">Edit Library Segment (Global Master)</h3>
+                  <h3 className="font-black text-base">Edit Master Segment</h3>
                   <button onClick={() => setEditingRepoItem(null)} className="text-slate-400 hover:text-white font-bold">✕</button>
                 </div>
-                <p className="text-xs text-slate-400">Updating this template will allow you to sync changes to connected shows or keep it as a master reference.</p>
+                <p className="text-xs text-slate-400">Updating this master segment allows you to sync changes directly into your active show rundown.</p>
                 
                 <div className="flex flex-col gap-3">
                   <div>
@@ -851,10 +878,16 @@ export default function App() {
                 <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
                   <button onClick={() => setEditingRepoItem(null)} className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700">Cancel</button>
                   <button 
-                    onClick={() => updateRepoItemInCloudAndLocal(editingRepoItem)}
+                    onClick={() => updateRepoItemMaster(editingRepoItem, false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-700 hover:bg-slate-600 text-white"
+                  >
+                    Save Master Only
+                  </button>
+                  <button 
+                    onClick={() => updateRepoItemMaster(editingRepoItem, true)}
                     className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/30"
                   >
-                    Save Master Segment
+                    Save & Sync to Active Show
                   </button>
                 </div>
               </div>
@@ -863,7 +896,94 @@ export default function App() {
         </main>
       )}
 
-      {/* VIEW 3: FULLSCREEN TELEPROMPTER WITH PRODUCER MODE */}
+      {/* VIEW 3: DEDICATED PRODUCER CONTROL VIEW */}
+      {currentView === "producer" && (
+        <main className="max-w-6xl mx-auto animate-fade-in">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-slate-900 text-white p-6 rounded-2xl shadow-xl">
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 bg-indigo-500/20 px-2.5 py-1 rounded-full border border-indigo-500/30">Live Producer Control Room</span>
+              <h2 className="text-2xl font-black mt-2">{showTitle}</h2>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Time of Day</div>
+                <div className="font-mono text-xl font-black text-amber-400">{currentTimeStr}</div>
+              </div>
+              <button 
+                onClick={() => setCurrentView("prompter")}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition shadow"
+              >
+                Launch Teleprompter 📺
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Active Cue Spotlight Card */}
+            <div className="md:col-span-1 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="text-xs uppercase font-bold text-slate-400 mb-2">Current Active Cue</div>
+                {activeTimedRundown[activeProducerIndex] ? (
+                  <div className="space-y-3">
+                    <div className="text-sm font-mono text-emerald-400 font-bold">[{activeTimedRundown[activeProducerIndex].calculatedTime || "BLOCK"}]</div>
+                    <h3 className="text-xl font-black text-white">{activeTimedRundown[activeProducerIndex].title || "Untitled"}</h3>
+                    {activeTimedRundown[activeProducerIndex].talent && (
+                      <p className="text-xs text-amber-400 font-semibold">🎙️ {activeTimedRundown[activeProducerIndex].talent}</p>
+                    )}
+                    <div 
+                      className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-40 overflow-y-auto"
+                      dangerouslySetInnerHTML={{ __html: activeTimedRundown[activeProducerIndex].script || activeTimedRundown[activeProducerIndex].type.toUpperCase() }}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">No cue selected.</p>
+                )}
+              </div>
+              <div className="flex gap-2 pt-6 border-t border-slate-800 mt-6">
+                <button 
+                  onClick={() => setActiveProducerIndex(Math.max(0, activeProducerIndex - 1))}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold transition"
+                >
+                  ◀ Previous Cue
+                </button>
+                <button 
+                  onClick={() => setActiveProducerIndex(Math.min(activeTimedRundown.length - 1, activeProducerIndex + 1))}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 py-3 rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30"
+                >
+                  Next Cue ▶
+                </button>
+              </div>
+            </div>
+
+            {/* Rundown Quick Jump List */}
+            <div className="md:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col">
+              <h3 className="font-black text-xs uppercase tracking-wider text-slate-400 mb-4">Rundown Sequence Tracker</h3>
+              <div className="flex-1 overflow-y-auto space-y-2 max-h-[500px] pr-2">
+                {activeTimedRundown.map((item, idx) => (
+                  <div 
+                    key={item.id || idx}
+                    onClick={() => setActiveProducerIndex(idx)}
+                    className={`p-3.5 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between ${activeProducerIndex === idx ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg' : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-emerald-400 font-bold">{item.calculatedTime || "---"}</span>
+                      <div>
+                        <div className="font-bold">{item.title || "Untitled"}</div>
+                        <div className="text-[10px] text-slate-400">{item.talent ? `Talent: ${item.talent}` : item.type.toUpperCase()}</div>
+                      </div>
+                    </div>
+                    {activeProducerIndex === idx && (
+                      <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ACTIVE</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* VIEW 4: FULLSCREEN TELEPROMPTER WITH COUNTDOWN TIMER */}
       {currentView === "prompter" && (
         <div className="fixed inset-0 bg-black z-50 flex flex-col text-white animate-fade-in w-screen h-screen">
           {/* Sticky Teleprompter Control Room Header */}
@@ -871,10 +991,11 @@ export default function App() {
             <div className="flex items-center gap-4">
               <span className="text-xs px-3 py-1 rounded-full bg-emerald-600 font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-                LIVE PROMPTER & PRODUCER MODE
+                LIVE TELEPROMPTER
               </span>
               <div className="hidden md:flex items-center gap-4 text-xs font-mono bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
                 <span>TIME: <strong className="text-amber-400">{currentTimeStr}</strong></span>
+                <span>SEGMENT TIMER: <strong className="text-sky-400">03:45</strong></span>
               </div>
             </div>
 
@@ -900,9 +1021,9 @@ export default function App() {
 
               <div className="flex items-center gap-1 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
                 <span>Text Size:</span>
-                <button onClick={() => setPrompterFontSize(Math.max(20, prompterFontSize - 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A-</button>
+                <button onClick={() => setPrompterFontSize(Math.max(24, prompterFontSize - 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A-</button>
                 <span className="font-mono w-6 text-center">{prompterFontSize}</span>
-                <button onClick={() => setPrompterFontSize(Math.min(60, prompterFontSize + 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A+</button>
+                <button onClick={() => setPrompterFontSize(Math.min(72, prompterFontSize + 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A+</button>
               </div>
 
               <button 
@@ -914,102 +1035,57 @@ export default function App() {
             </div>
           </header>
 
-          {/* Prompter Body & Producer Mode Navigator */}
-          <div className="flex-1 flex overflow-hidden w-full">
-            {/* Main Full-Width Teleprompter Feed */}
-            <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-12 leading-relaxed w-full" style={{ fontSize: `${prompterFontSize}px` }}>
-              <div className="max-w-5xl mx-auto w-full">
-                <h1 className="text-3xl md:text-5xl font-black text-sky-400 mb-10 pb-6 border-b border-slate-800 tracking-tight">{showTitle}</h1>
-                {activeTimedRundown.map((item, idx) => {
-                  const isCurrentProducerCue = activePrompterIndex === idx;
-
-                  if (item.type === "block") {
-                    return (
-                      <div 
-                        key={item.id || idx} 
-                        style={{ backgroundColor: item.color }} 
-                        className={`p-6 my-10 font-bold uppercase rounded-2xl shadow-2xl text-white tracking-wide transition-all ${isCurrentProducerCue ? 'ring-4 ring-white scale-[1.01]' : ''}`}
-                      >
-                        {item.title || "SECTION"}
-                      </div>
-                    );
-                  }
-                  if (item.type === "cue") {
-                    return (
-                      <div 
-                        key={item.id || idx} 
-                        style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff" }} 
-                        className={`p-5 my-8 font-bold rounded-2xl shadow-xl transition-all ${isCurrentProducerCue ? 'ring-4 ring-white scale-[1.01]' : ''}`}
-                      >
-                        [CUE {item.calculatedTime}] {item.title || 'Cue'} {item.talent ? `| Target: ${item.talent}` : ''}
-                      </div>
-                    );
-                  }
-                  if (item.type === "segment" && item.script && item.script.replace(/<[^>]*>/g, '').trim() !== "") {
-                    return (
-                      <div 
-                        key={item.id || idx} 
-                        className={`mb-16 pb-8 border-b border-slate-800 transition-all ${isCurrentProducerCue ? 'bg-slate-900/60 p-6 rounded-2xl border-2 border-sky-500 shadow-2xl' : ''}`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sky-400 font-mono font-bold text-lg md:text-xl">[{item.calculatedTime}] {item.title || 'Segment'}</span>
-                          <span className="text-xs font-mono text-slate-400">Dur: {item.min}m {item.sec}s</span>
-                        </div>
-                        {item.talent && <div className="text-amber-400 font-semibold mb-4 text-base md:text-lg">🎙️ {item.talent}</div>}
-                        <div 
-                          className="prose prose-invert max-w-none text-slate-100 font-medium"
-                          style={{ textTransform: item.isUpper ? 'uppercase' : 'none', fontSize: `${prompterFontSize}px`, lineHeight: '1.6' }}
-                          dangerouslySetInnerHTML={{ __html: item.script }} 
-                        />
-                      </div>
-                    );
-                  }
-                  return null;
-                })}
-              </div>
-            </div>
-
-            {/* Producer Mode Sidebar (Quick Jump & Cue Control) */}
-            <aside className="w-80 bg-slate-900 border-l border-slate-800 p-4 hidden xl:flex flex-col">
-              <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
-                <h3 className="font-black text-xs uppercase tracking-wider text-slate-300">Producer Cue Control</h3>
-                <span className="text-[10px] font-mono bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">Live Tracker</span>
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                {activeTimedRundown.map((item, idx) => (
-                  <button 
-                    key={item.id || idx}
-                    onClick={() => setActivePrompterIndex(idx)}
-                    className={`w-full text-left p-3 rounded-xl border text-xs transition flex flex-col gap-1 ${activePrompterIndex === idx ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'}`}
-                  >
-                    <div className="flex justify-between font-mono text-[10px] opacity-80">
-                      <span>{item.calculatedTime || "BLOCK"}</span>
-                      <span>{item.type.toUpperCase()}</span>
+          {/* Prompter Body Feed */}
+          <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-16 leading-relaxed w-full" style={{ fontSize: `${prompterFontSize}px` }}>
+            <div className="max-w-5xl mx-auto w-full">
+              <h1 className="text-3xl md:text-5xl font-black text-sky-400 mb-12 pb-6 border-b border-slate-800 tracking-tight">{showTitle}</h1>
+              {activeTimedRundown.map((item, idx) => {
+                if (item.type === "block") {
+                  return (
+                    <div 
+                      key={item.id || idx} 
+                      style={{ backgroundColor: item.color }} 
+                      className="p-6 my-10 font-bold uppercase rounded-2xl shadow-2xl text-white tracking-wide"
+                    >
+                      {item.title || "SECTION"}
                     </div>
-                    <div className="font-bold truncate">{item.title || "Untitled"}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="pt-3 border-t border-slate-800 flex gap-2">
-                <button 
-                  onClick={() => setActivePrompterIndex(Math.max(0, activePrompterIndex - 1))}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-xl text-xs font-bold"
-                >
-                  ◀ Prev Cue
-                </button>
-                <button 
-                  onClick={() => setActivePrompterIndex(Math.min(activeTimedRundown.length - 1, activePrompterIndex + 1))}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 py-2 rounded-xl text-xs font-bold"
-                >
-                  Next Cue ▶
-                </button>
-              </div>
-            </aside>
+                  );
+                }
+                if (item.type === "cue") {
+                  return (
+                    <div 
+                      key={item.id || idx} 
+                      style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff" }} 
+                      className="p-5 my-8 font-bold rounded-2xl shadow-xl"
+                    >
+                      [CUE {item.calculatedTime}] {item.title || 'Cue'} {item.talent ? `| Target: ${item.talent}` : ''}
+                    </div>
+                  );
+                }
+                if (item.type === "segment" && item.script && item.script.replace(/<[^>]*>/g, '').trim() !== "") {
+                  return (
+                    <div key={item.id || idx} className="mb-20 pb-10 border-b border-slate-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sky-400 font-mono font-bold text-lg md:text-xl">[{item.calculatedTime}] {item.title || 'Segment'}</span>
+                        <span className="text-xs font-mono text-slate-400">Dur: {item.min}m {item.sec}s</span>
+                      </div>
+                      {item.talent && <div className="text-amber-400 font-semibold mb-4 text-base md:text-lg">🎙️ {item.talent}</div>}
+                      <div 
+                        className="prose prose-invert max-w-none text-slate-100 font-medium"
+                        style={{ textTransform: item.isUpper ? 'uppercase' : 'none', fontSize: `${prompterFontSize}px`, lineHeight: '1.6' }}
+                        dangerouslySetInnerHTML={{ __html: item.script }} 
+                      />
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
           </div>
         </div>
       )}
 
-      {/* VIEW 4: MODERN ACTIVE SHOW EDITOR */}
+      {/* VIEW 5: MODERN ACTIVE SHOW EDITOR */}
       {currentView === "editor" && (
         <main className="max-w-7xl mx-auto animate-fade-in">
           
@@ -1045,7 +1121,8 @@ export default function App() {
             <button onClick={addCue} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-lg shadow-amber-600/20 transition flex items-center gap-1.5">+ Add Cue</button>
             <button onClick={addBlock} className="bg-slate-700 hover:bg-slate-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">+ Add Section Block</button>
             <button onClick={addColumn} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">+ Add Column</button>
-            <button onClick={() => { setActivePrompterIndex(0); setCurrentView("prompter"); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">📺 Prompter</button>
+            <button onClick={() => { setActiveProducerIndex(0); setCurrentView("producer"); }} className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">⏱️ Producer</button>
+            <button onClick={() => { setActiveProducerIndex(0); setCurrentView("prompter"); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">📺 Prompter</button>
             <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3.5 py-2 rounded-xl text-xs shadow transition">📄 Print PDF</button>
           </div>
 
