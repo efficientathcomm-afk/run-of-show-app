@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 
 // Exact Firebase project configuration
 const firebaseConfig = {
@@ -31,6 +31,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [syncStatus, setSyncStatus] = useState("Connecting to Cloud...");
   const [currentView, setCurrentView] = useState("list"); // "list" | "editor" | "prompter" | "repo"
+  const [themeMode, setThemeMode] = useState("light"); // "light" | "dark"
   
   // Shows State
   const [showsList, setShowsList] = useState([]);
@@ -42,8 +43,9 @@ export default function App() {
   const [customColumns, setCustomColumns] = useState(["Audio / Cues", "Video / Slides"]);
   const [rundown, setRundown] = useState([]);
   
-  // Reusable Repository
+  // Reusable Repository & Filters
   const [segmentRepo, setSegmentRepo] = useState([]);
+  const [repoSearch, setRepoSearch] = useState("");
 
   // Teleprompter State
   const [isPrompterPlaying, setIsPrompterPlaying] = useState(false);
@@ -51,7 +53,7 @@ export default function App() {
   const prompterRef = useRef(null);
   const scrollTimerRef = useRef(null);
 
-  // 1. Firebase Auth Initialization (Strictly awaiting sign-in before allowing writes)
+  // 1. Firebase Auth Initialization
   useEffect(() => {
     if (!auth) {
       setSyncStatus("💾 Local Mode");
@@ -76,11 +78,10 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Cloud Data Synchronization (Firestore) with Corrected Even-Segment Document Paths
+  // 2. Cloud Data Synchronization (Firestore)
   useEffect(() => {
     if (!user || !db) return;
 
-    // Listen to Shows List Index (Even path segments: artifacts / {appId} / public / shows_index)
     const indexRef = doc(db, 'artifacts', appId, 'public', 'shows_index');
     const unsubIndex = onSnapshot(indexRef, (snap) => {
       if (snap.exists()) {
@@ -99,7 +100,6 @@ export default function App() {
       setSyncStatus("⚠️ Permission Error - Check Firestore Rules");
     });
 
-    // Listen to Segment Repository (Even path segments: artifacts / {appId} / public / segment_repo)
     const repoRef = doc(db, 'artifacts', appId, 'public', 'segment_repo');
     const unsubRepo = onSnapshot(repoRef, (snap) => {
       if (snap.exists()) {
@@ -113,7 +113,7 @@ export default function App() {
     };
   }, [user]);
 
-  // 3. Listen to Active Show Document Changes (Even path segments: artifacts / {appId} / public / show_{id})
+  // 3. Listen to Active Show Document Changes
   useEffect(() => {
     if (!user || !activeShowId || !db) return;
 
@@ -131,7 +131,6 @@ export default function App() {
     return () => unsubShow();
   }, [user, activeShowId]);
 
-  // Fallbacks for offline / local mode
   const loadLocalFallback = () => {
     try {
       const savedList = localStorage.getItem("ros_shows");
@@ -217,7 +216,7 @@ export default function App() {
         }
         await setDoc(indexRef, { shows: list });
       } catch (err) {
-        console.error("Cloud persist error (Permission check required):", err);
+        console.error("Cloud persist error:", err);
       }
     } else {
       try {
@@ -252,7 +251,7 @@ export default function App() {
         setCurrentView("editor");
       }).catch(err => {
         console.error("Create show permission error:", err);
-        alert("Permission denied. Please verify your Firestore security rules allow write access.");
+        alert("Permission denied. Please verify your Firestore security rules.");
       });
     } else {
       createNewShowLocal(name);
@@ -275,7 +274,7 @@ export default function App() {
     }
   };
 
-  // Timing Calculation Engine
+  // Timing Calculation & Total Duration Engine
   const calculateSchedule = () => {
     const parts = startTime.split(":");
     let currentSecs = (parseInt(parts[0]) || 0) * 3600 + (parseInt(parts[1]) || 0) * 60 + (parseInt(parts[2]) || 0);
@@ -297,7 +296,14 @@ export default function App() {
 
   const activeTimedRundown = calculateSchedule();
 
-  // Row operations
+  const totalDurationSeconds = rundown.reduce((acc, item) => {
+    if (item.type === "block") return acc;
+    return acc + (parseInt(item.min) || 0) * 60 + (parseInt(item.sec) || 0);
+  }, 0);
+  const totalHours = Math.floor(totalDurationSeconds / 3600);
+  const totalMins = Math.floor((totalDurationSeconds % 3600) / 60);
+  const totalSecs = totalDurationSeconds % 60;
+
   const addSegment = () => {
     const item = {
       id: "seg_" + Date.now(),
@@ -336,7 +342,7 @@ export default function App() {
       id: "blk_" + Date.now(),
       type: "block",
       title: "NEXT SECTION BREAK",
-      color: "#0f172a"
+      color: "#1e293b"
     };
     const updated = [...rundown, item];
     setRundown(updated);
@@ -401,7 +407,6 @@ export default function App() {
     persistShow(showTitle, startTime, newCols, newRundown);
   };
 
-  // Reusable Repository Actions
   const saveToRepo = (item) => {
     if (item.type === "block") return;
     const repoItem = {
@@ -418,7 +423,7 @@ export default function App() {
     if (user && db) {
       setDoc(doc(db, 'artifacts', appId, 'public', 'segment_repo'), { items: updatedRepo })
         .then(() => alert("Segment saved to Reusable Repository!"))
-        .catch(err => alert("Permission denied saving to repo. Check Firestore rules."));
+        .catch(err => alert("Permission denied saving to repo."));
     } else {
       localStorage.setItem("ros_repo", JSON.stringify(updatedRepo));
       alert("Segment saved to Reusable Repository!");
@@ -442,7 +447,6 @@ export default function App() {
     persistShow(showTitle, startTime, customColumns, updated);
   };
 
-  // Teleprompter Auto-Scroll Effect
   useEffect(() => {
     if (isPrompterPlaying) {
       scrollTimerRef.current = setInterval(() => {
@@ -456,57 +460,63 @@ export default function App() {
     return () => clearInterval(scrollTimerRef.current);
   }, [isPrompterPlaying, prompterSpeed]);
 
+  const isDark = themeMode === "dark";
+
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans p-4 md:p-6">
-      
-      {/* Top Application Header */}
-      <header className="bg-slate-900 text-white px-6 py-4 rounded-2xl mb-6 shadow-xl flex flex-wrap items-center justify-between gap-4">
+    <div className={`min-h-screen font-sans transition-colors duration-200 ${isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} p-4 md:p-6`}>
+      <header className={`${isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-900 text-white'} px-6 py-4 rounded-2xl mb-6 shadow-xl flex flex-wrap items-center justify-between gap-4 border border-transparent`}>
         <div className="flex items-center gap-3">
           <span className="text-3xl">🎙️</span>
           <div>
-            <h1 className="text-xl font-black tracking-tight">Run of Show Studio</h1>
+            <h1 className="text-xl font-black tracking-tight text-white">Run of Show Studio</h1>
             <p className="text-xs text-emerald-400 font-bold">{syncStatus}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button 
             onClick={() => setCurrentView("list")} 
-            className={`px-3.5 py-2 rounded-lg text-sm font-bold transition ${currentView === "list" ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+            className={`px-3.5 py-2 rounded-xl text-sm font-bold transition ${currentView === "list" ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
           >
             📋 Shows ({showsList.length})
           </button>
           {activeShowId && (
             <button 
               onClick={() => setCurrentView("editor")} 
-              className={`px-3.5 py-2 rounded-lg text-sm font-bold transition ${currentView === "editor" ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+              className={`px-3.5 py-2 rounded-xl text-sm font-bold transition ${currentView === "editor" ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
             >
               ✏️ Editor
             </button>
           )}
           <button 
             onClick={() => setCurrentView("repo")} 
-            className={`px-3.5 py-2 rounded-lg text-sm font-bold transition ${currentView === "repo" ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+            className={`px-3.5 py-2 rounded-xl text-sm font-bold transition ${currentView === "repo" ? 'bg-purple-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
           >
             📚 Segment Library ({segmentRepo.length})
           </button>
           {activeShowId && (
             <button 
               onClick={() => setCurrentView("prompter")} 
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition shadow flex items-center gap-1.5"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition shadow flex items-center gap-1.5"
             >
               📺 Launch Prompter
             </button>
           )}
+          <button 
+            onClick={() => setThemeMode(isDark ? 'light' : 'dark')}
+            className="bg-slate-800 hover:bg-slate-700 text-amber-400 px-3.5 py-2 rounded-xl text-sm font-bold transition"
+            title="Toggle Theme"
+          >
+            {isDark ? '☀️ Light' : '🌙 Dark'}
+          </button>
         </div>
       </header>
 
-      {/* VIEW 1: SHOWS LIST */}
       {currentView === "list" && (
         <main className="max-w-5xl mx-auto">
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-2xl font-black">Production Rundowns</h2>
-              <p className="text-sm text-slate-500">Manage and create live show rundowns synchronized instantly in the cloud.</p>
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Manage and create live show rundowns synchronized instantly in the cloud.</p>
             </div>
             <button 
               onClick={handleCreateShowPrompt}
@@ -521,11 +531,11 @@ export default function App() {
               <div 
                 key={show.id}
                 onClick={() => { setActiveShowId(show.id); setCurrentView("editor"); }}
-                className={`bg-white p-5 rounded-2xl border transition shadow-sm hover:shadow-md cursor-pointer flex flex-col justify-between ${activeShowId === show.id ? 'border-blue-600 ring-2 ring-blue-600/20' : 'border-slate-200 hover:border-slate-300'}`}
+                className={`${isDark ? 'bg-slate-900 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'} p-5 rounded-2xl border transition shadow-sm hover:shadow-md cursor-pointer flex flex-col justify-between ${activeShowId === show.id ? 'border-blue-600 ring-2 ring-blue-600/20' : ''}`}
               >
                 <div>
                   <div className="flex justify-between items-start gap-2 mb-2">
-                    <h3 className="font-bold text-lg text-slate-900 line-clamp-2">{show.title || "Untitled"}</h3>
+                    <h3 className={`font-bold text-lg line-clamp-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>{show.title || "Untitled"}</h3>
                     <button 
                       onClick={(e) => handleDeleteShow(show.id, e)}
                       className="text-slate-400 hover:text-rose-600 p-1 text-xs font-bold"
@@ -536,11 +546,11 @@ export default function App() {
                   </div>
                   <p className="text-xs text-slate-400 mb-4">Updated: {new Date(show.updatedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                  <span className="text-xs font-bold text-blue-600">Open Studio →</span>
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800/20">
+                  <span className="text-xs font-bold text-blue-500">Open Studio →</span>
                   <button 
                     onClick={(e) => { e.stopPropagation(); setActiveShowId(show.id); setCurrentView("prompter"); }}
-                    className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs px-2.5 py-1 rounded-lg font-bold"
+                    className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-1 rounded-lg font-bold"
                   >
                     📺 Prompter
                   </button>
@@ -551,26 +561,36 @@ export default function App() {
         </main>
       )}
 
-      {/* VIEW 2: REUSABLE REPOSITORY */}
       {currentView === "repo" && (
         <main className="max-w-5xl mx-auto">
-          <div className="mb-6">
-            <h2 className="text-2xl font-black">Reusable Segment Repository</h2>
-            <p className="text-sm text-slate-500">Save frequently used segments, intros, or interview blocks from any show and instantly inject them into new productions.</p>
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-black">Reusable Segment Repository</h2>
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Search and inject saved segments instantly into any production.</p>
+            </div>
+            <input 
+              type="text" 
+              placeholder="Search library..." 
+              value={repoSearch}
+              onChange={(e) => setRepoSearch(e.target.value)}
+              className={`px-4 py-2 rounded-xl border text-sm w-64 ${isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200'}`}
+            />
           </div>
 
           {segmentRepo.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500">
+            <div className={`${isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-500'} border rounded-2xl p-12 text-center`}>
               <p className="text-lg font-semibold mb-1">Your library is currently empty.</p>
               <p className="text-xs">While editing any rundown, click the "💾 Save to Library" button on any segment row.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {segmentRepo.map((item) => (
-                <div key={item.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+              {segmentRepo
+                .filter(item => item.title.toLowerCase().includes(repoSearch.toLowerCase()) || (item.talent && item.talent.toLowerCase().includes(repoSearch.toLowerCase())))
+                .map((item) => (
+                <div key={item.id} className={`${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border rounded-2xl p-5 shadow-sm flex flex-col justify-between`}>
                   <div>
                     <div className="flex justify-between items-start gap-2 mb-2">
-                      <h4 className="font-bold text-base text-slate-900">{item.title}</h4>
+                      <h4 className={`font-bold text-base ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.title}</h4>
                       <button 
                         onClick={() => {
                           const updated = segmentRepo.filter(i => i.id !== item.id);
@@ -583,13 +603,13 @@ export default function App() {
                         Delete
                       </button>
                     </div>
-                    <div className="flex gap-4 text-xs text-slate-500 mb-3">
+                    <div className="flex gap-4 text-xs text-slate-400 mb-3">
                       <span>⏱️ {item.min}m {item.sec}s</span>
                       {item.talent && <span>🎙️ {item.talent}</span>}
                     </div>
                     <div 
                       dangerouslySetInnerHTML={{ __html: item.script }} 
-                      className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 max-h-24 overflow-y-auto mb-4"
+                      className={`text-xs ${isDark ? 'bg-slate-950 text-slate-300 border-slate-800' : 'bg-slate-50 text-slate-600 border-slate-100'} p-3 rounded-xl border max-h-24 overflow-y-auto mb-4`}
                     />
                   </div>
                   {activeShowId && (
@@ -607,7 +627,6 @@ export default function App() {
         </main>
       )}
 
-      {/* VIEW 3: LIVE TELEPROMPTER OVERLAY */}
       {currentView === "prompter" && (
         <div className="fixed inset-0 bg-black z-50 p-6 flex flex-col text-white">
           <div className="absolute top-4 right-6 bg-slate-900/95 border border-slate-700 p-3 rounded-xl flex items-center gap-4 shadow-2xl z-50">
@@ -669,7 +688,6 @@ export default function App() {
         </div>
       )}
 
-      {/* VIEW 4: ACTIVE SHOW EDITOR */}
       {currentView === "editor" && (
         <main className="max-w-7xl mx-auto">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -677,12 +695,15 @@ export default function App() {
               type="text" 
               value={showTitle} 
               onChange={(e) => { setShowTitle(e.target.value); persistShow(e.target.value, startTime, customColumns, rundown); }}
-              className="text-2xl md:text-3xl font-black bg-transparent border border-transparent hover:border-slate-300 focus:border-blue-600 focus:bg-white rounded-xl px-3 py-1.5 flex-1 transition"
+              className={`text-2xl md:text-3xl font-black bg-transparent border border-transparent hover:border-slate-700 focus:border-blue-600 focus:${isDark ? 'bg-slate-900 text-white' : 'bg-white'} rounded-xl px-3 py-1.5 flex-1 transition`}
               placeholder="Show Title..."
             />
+            <div className={`px-4 py-2 rounded-xl text-xs font-bold border ${isDark ? 'bg-slate-900 border-slate-800 text-emerald-400' : 'bg-white border-slate-200 text-emerald-600'}`}>
+              ⏱️ Total Duration: {totalHours > 0 ? `${totalHours}h ` : ''}{totalMins}m {totalSecs}s
+            </div>
           </div>
 
-          <div className="sticky top-0 z-40 bg-slate-100/95 backdrop-blur py-3 mb-6 flex flex-wrap gap-3 items-center border-b border-slate-200">
+          <div className={`sticky top-0 z-40 ${isDark ? 'bg-slate-950/95 border-slate-800' : 'bg-slate-100/95 border-slate-200'} backdrop-blur py-3 mb-6 flex flex-wrap gap-3 items-center border-b`}>
             <label className="font-bold flex items-center gap-2 text-sm">
               Start Time: 
               <input 
@@ -690,7 +711,7 @@ export default function App() {
                 step="1" 
                 value={startTime} 
                 onChange={(e) => { setStartTime(e.target.value); persistShow(showTitle, e.target.value, customColumns, rundown); }}
-                className="px-3 py-1.5 border border-slate-300 rounded-xl text-sm bg-white font-mono"
+                className={`px-3 py-1.5 border rounded-xl text-sm font-mono ${isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-300'}`}
               />
             </label>
             
@@ -702,7 +723,7 @@ export default function App() {
             <button onClick={() => window.print()} className="bg-slate-600 hover:bg-slate-700 text-white font-bold px-3.5 py-2 rounded-xl text-sm shadow transition">📄 Print / PDF</button>
           </div>
 
-          <div className="overflow-x-auto shadow-xl rounded-2xl border border-slate-200 bg-white">
+          <div className={`overflow-x-auto shadow-xl rounded-2xl border ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}>
             <table className="w-full border-collapse min-w-[950px]">
               <thead>
                 <tr className="bg-slate-900 text-white text-left text-xs uppercase tracking-wider">
@@ -722,7 +743,7 @@ export default function App() {
                   <th className="p-3.5 w-[140px] text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className={`divide-y ${isDark ? 'divide-slate-800' : 'divide-slate-200'}`}>
                 {activeTimedRundown.map((item, index) => {
                   if (item.type === "block") {
                     const colSpanCount = 6 + customColumns.length;
@@ -746,8 +767,8 @@ export default function App() {
                         </td>
                         <td className="p-3 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => moveRow(index, -1)} className="bg-slate-600 text-white text-xs px-2 py-1 rounded">▲</button>
-                            <button onClick={() => moveRow(index, 1)} className="bg-slate-600 text-white text-xs px-2 py-1 rounded">▼</button>
+                            <button onClick={() => moveRow(index, -1)} className="bg-slate-700 text-white text-xs px-2 py-1 rounded">▲</button>
+                            <button onClick={() => moveRow(index, 1)} className="bg-slate-700 text-white text-xs px-2 py-1 rounded">▼</button>
                             <button onClick={() => deleteRow(index)} className="bg-rose-600 text-white text-xs px-2 py-1 rounded">Del</button>
                           </div>
                         </td>
@@ -758,23 +779,23 @@ export default function App() {
                   if (item.type === "cue") {
                     return (
                       <tr key={item.id} style={{ backgroundColor: item.color }} className="transition-colors">
-                        <td className="p-3.5 font-mono font-bold text-sm">{item.calculatedTime}</td>
+                        <td className="p-3.5 font-mono font-bold text-sm text-slate-900">{item.calculatedTime}</td>
                         <td className="p-3.5">
                           <div className="flex items-center gap-1">
-                            <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className="w-12 text-center p-1 border rounded-lg bg-white text-sm" />m
-                            <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className="w-12 text-center p-1 border rounded-lg bg-white text-sm" />s
+                            <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className="w-12 text-center p-1 border rounded-lg bg-white text-slate-900 text-sm" />m
+                            <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className="w-12 text-center p-1 border rounded-lg bg-white text-slate-900 text-sm" />s
                           </div>
                         </td>
                         <td className="p-3.5">
-                          <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className="w-full p-1.5 border rounded-lg bg-white text-sm" placeholder="Cue title..." />
+                          <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className="w-full p-1.5 border rounded-lg bg-white text-slate-900 text-sm" placeholder="Cue title..." />
                         </td>
                         <td className="p-3.5">
-                          <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className="w-full p-1.5 border rounded-lg bg-white text-sm" placeholder="Target..." />
+                          <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className="w-full p-1.5 border rounded-lg bg-white text-slate-900 text-sm" placeholder="Target..." />
                         </td>
                         <td className="p-3.5">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-xs uppercase">Color:</span>
-                            <select value={item.color} onChange={(e) => updateItem(index, 'color', e.target.value)} className="p-1 border rounded-lg bg-white text-xs">
+                            <span className="font-bold text-xs uppercase text-slate-900">Color:</span>
+                            <select value={item.color} onChange={(e) => updateItem(index, 'color', e.target.value)} className="p-1 border rounded-lg bg-white text-slate-900 text-xs">
                               <option value="#f59e0b">Gold</option>
                               <option value="#10b981">Green</option>
                               <option value="#3b82f6">Blue</option>
@@ -784,13 +805,13 @@ export default function App() {
                         </td>
                         {customColumns.map((_, colIdx) => (
                           <td key={colIdx} className="p-3.5">
-                            <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className="w-full p-1.5 border rounded-lg bg-white text-sm" placeholder="Notes..." />
+                            <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className="w-full p-1.5 border rounded-lg bg-white text-slate-900 text-sm" placeholder="Notes..." />
                           </td>
                         ))}
                         <td className="p-3.5 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => moveRow(index, -1)} className="bg-slate-600 text-white text-xs px-2 py-1 rounded">▲</button>
-                            <button onClick={() => moveRow(index, 1)} className="bg-slate-600 text-white text-xs px-2 py-1 rounded">▼</button>
+                            <button onClick={() => moveRow(index, -1)} className="bg-slate-700 text-white text-xs px-2 py-1 rounded">▲</button>
+                            <button onClick={() => moveRow(index, 1)} className="bg-slate-700 text-white text-xs px-2 py-1 rounded">▼</button>
                             <button onClick={() => deleteRow(index)} className="bg-rose-600 text-white text-xs px-2 py-1 rounded">Del</button>
                           </div>
                         </td>
@@ -799,28 +820,28 @@ export default function App() {
                   }
 
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-3.5 font-mono font-bold text-sm text-slate-700">{item.calculatedTime}</td>
+                    <tr key={item.id} className={`${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'} transition-colors`}>
+                      <td className={`p-3.5 font-mono font-bold text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{item.calculatedTime}</td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-1">
-                          <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className="w-12 text-center p-1 border rounded-lg text-sm" />m
-                          <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className="w-12 text-center p-1 border rounded-lg text-sm" />s
+                          <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className={`w-12 text-center p-1 border rounded-lg text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} />m
+                          <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className={`w-12 text-center p-1 border rounded-lg text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} />s
                         </div>
                       </td>
                       <td className="p-3.5">
-                        <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className="w-full p-1.5 border rounded-lg text-sm" placeholder="Segment title..." />
+                        <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className={`w-full p-1.5 border rounded-lg text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} placeholder="Segment title..." />
                       </td>
                       <td className="p-3.5">
-                        <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className="w-full p-1.5 border rounded-lg text-sm" placeholder="Talent name..." />
+                        <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className={`w-full p-1.5 border rounded-lg text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} placeholder="Talent name..." />
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center justify-between gap-1 mb-1.5">
                           <div className="flex gap-1">
-                            <button onClick={() => document.execCommand('bold')} className="bg-slate-200 hover:bg-slate-300 px-2 py-0.5 text-xs rounded font-bold">B</button>
-                            <button onClick={() => document.execCommand('italic')} className="bg-slate-200 hover:bg-slate-300 px-2 py-0.5 text-xs rounded italic">I</button>
-                            <button onClick={() => updateItem(index, 'isUpper', !item.isUpper)} className={`px-2 py-0.5 text-xs rounded font-semibold ${item.isUpper ? 'bg-blue-600 text-white' : 'bg-slate-200'}`}>CAPS</button>
+                            <button onClick={() => document.execCommand('bold')} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-0.5 text-xs rounded font-bold">B</button>
+                            <button onClick={() => document.execCommand('italic')} className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-0.5 text-xs rounded italic">I</button>
+                            <button onClick={() => updateItem(index, 'isUpper', !item.isUpper)} className={`px-2 py-0.5 text-xs rounded font-semibold ${item.isUpper ? 'bg-blue-600 text-white' : 'bg-slate-700 text-white'}`}>CAPS</button>
                           </div>
-                          <button onClick={() => saveToRepo(item)} className="bg-purple-100 hover:bg-purple-200 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded transition">💾 Save to Library</button>
+                          <button onClick={() => saveToRepo(item)} className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-[10px] font-bold px-2 py-0.5 rounded transition">💾 Save to Library</button>
                         </div>
                         <div 
                           contentEditable={true} 
@@ -828,18 +849,18 @@ export default function App() {
                           onBlur={(e) => updateItem(index, 'script', e.target.innerHTML)}
                           dangerouslySetInnerHTML={{ __html: item.script }}
                           style={{ textTransform: item.isUpper ? 'uppercase' : 'none' }}
-                          className="min-h-[60px] p-2.5 border rounded-xl bg-white text-sm outline-none focus:border-blue-600 overflow-y-auto"
+                          className={`min-h-[60px] p-2.5 border rounded-xl text-sm outline-none focus:border-blue-600 overflow-y-auto ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
                         />
                       </td>
                       {customColumns.map((_, colIdx) => (
                         <td key={colIdx} className="p-3.5">
-                          <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className="w-full p-1.5 border rounded-lg text-sm" placeholder="Notes..." />
+                          <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className={`w-full p-1.5 border rounded-lg text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} placeholder="Notes..." />
                         </td>
                       ))}
                       <td className="p-3.5 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => moveRow(index, -1)} className="bg-slate-600 text-white text-xs px-2 py-1 rounded">▲</button>
-                          <button onClick={() => moveRow(index, 1)} className="bg-slate-600 text-white text-xs px-2 py-1 rounded">▼</button>
+                          <button onClick={() => moveRow(index, -1)} className="bg-slate-700 text-white text-xs px-2 py-1 rounded">▲</button>
+                          <button onClick={() => moveRow(index, 1)} className="bg-slate-700 text-white text-xs px-2 py-1 rounded">▼</button>
                           <button onClick={() => deleteRow(index)} className="bg-rose-600 text-white text-xs px-2 py-1 rounded">Del</button>
                         </div>
                       </td>
@@ -851,7 +872,6 @@ export default function App() {
           </div>
         </main>
       )}
-
     </div>
   );
 }
