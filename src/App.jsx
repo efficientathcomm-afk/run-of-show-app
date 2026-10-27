@@ -523,7 +523,7 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg md:text-xl font-black tracking-tight text-white">Run of Show Studio</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v3.4</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v3.5</span>
             </div>
             <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -897,12 +897,12 @@ export default function App() {
                 <tr className="bg-slate-900 text-white text-left text-[11px] uppercase tracking-wider">
                   <th className="p-3.5 w-[50px] text-center">⋮⋮</th>
                   <th className="p-3.5 w-[110px]">Time</th>
-                  <th className="p-3.5 w-[110px]">Duration</th>
+                  <th className="p-3.5 w-[130px]">Duration</th>
                   <th className="p-3.5 w-[180px]">Segment / Title</th>
-                  <th className="p-3.5 w-[130px]">Talent</th>
+                  <th className="p-3.5 w-[140px]">Talent</th>
                   <th className="p-3.5 w-[340px]">Script & Cue Notes</th>
                   {customColumns.map((col, idx) => (
-                    <th key={idx} className="p-3.5 w-[160px]">
+                    <th key={idx} className="p-3.5 w-[180px]">
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate">{col}</span>
                         <button 
@@ -915,7 +915,7 @@ export default function App() {
                       </div>
                     </th>
                   ))}
-                  <th className="p-3.5 w-[120px] text-center">Actions</th>
+                  <th className="p-3.5 w-[110px] text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className={`divide-y ${isDark ? 'divide-slate-800/80' : 'divide-slate-200'}`}>
@@ -937,15 +937,15 @@ export default function App() {
                         <td className="p-3 text-center text-white/70 font-bold">⋮⋮</td>
                         <td colSpan={colSpanCount - 2} className="p-3">
                           <div className="flex items-center gap-3">
-                            {/* Simple Preset Color Selector for Blocks */}
-                            <div className="flex items-center gap-1.5 bg-black/30 p-1.5 rounded-xl">
+                            {/* Modern Color Preset Buttons */}
+                            <div className="flex items-center gap-1 bg-black/30 p-1 rounded-xl">
                               {["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#475569"].map(c => (
                                 <button
                                   key={c}
                                   onClick={() => updateItem(index, 'color', c)}
                                   style={{ backgroundColor: c }}
-                                  className={`w-6 h-6 rounded-lg border shadow transition ${item.color === c ? 'border-white scale-110 ring-2 ring-white/50' : 'border-transparent opacity-70 hover:opacity-100'}`}
-                                  title={`Select color ${c}`}
+                                  className={`w-5 h-5 rounded-lg border transition ${item.color === c ? 'border-white scale-110 ring-2 ring-white/50' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                                  title={`Color ${c}`}
                                 />
                               ))}
                             </div>
@@ -964,7 +964,7 @@ export default function App() {
                             <button onClick={() => moveRow(index, 1)} className="w-7 h-7 rounded-xl bg-black/30 hover:bg-black/50 text-white text-xs flex items-center justify-center transition" title="Move Down">▼</button>
                             <button 
                               onClick={() => deleteRow(index)} 
-                              className="w-7 h-7 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs flex items-center justify-center font-bold transition shadow"
+                              className="w-7 h-7 rounded-full bg-rose-600/80 hover:bg-rose-600 text-white text-xs flex items-center justify-center font-bold transition shadow"
                               title="Delete Row"
                             >
                               ✕
@@ -990,27 +990,54 @@ export default function App() {
                         <td className="p-3.5 text-center text-slate-700 font-bold">⋮⋮</td>
                         <td className="p-3.5 font-mono font-bold text-xs text-slate-900">{item.calculatedTime}</td>
                         <td className="p-3.5">
-                          <div className="flex items-center gap-1 font-mono text-xs">
-                            <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className="w-12 text-center p-1.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" />m
-                            <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className="w-12 text-center p-1.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" />s
+                          <div className="flex items-center gap-1.5 bg-white/60 p-1.5 rounded-xl border border-black/10 shadow-sm">
+                            <input 
+                              type="number" 
+                              value={item.min} 
+                              min="0" 
+                              onChange={(e) => updateItem(index, 'min', e.target.value)} 
+                              className="w-9 text-center font-mono font-bold text-xs bg-transparent border-none outline-none" 
+                            />
+                            <span className="text-[10px] font-bold opacity-70">m</span>
+                            <input 
+                              type="number" 
+                              value={item.sec} 
+                              min="0" 
+                              max="59" 
+                              onChange={(e) => updateItem(index, 'sec', e.target.value)} 
+                              className="w-9 text-center font-mono font-bold text-xs bg-transparent border-none outline-none" 
+                            />
+                            <span className="text-[10px] font-bold opacity-70">s</span>
                           </div>
                         </td>
                         <td className="p-3.5">
-                          <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs font-semibold shadow-sm" placeholder="Cue Title..." />
+                          <textarea 
+                            rows="2"
+                            value={item.title} 
+                            onChange={(e) => updateItem(index, 'title', e.target.value)} 
+                            className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs font-semibold shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                            placeholder="Cue Title..." 
+                          />
                         </td>
                         <td className="p-3.5">
-                          <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" placeholder="Target / AV..." />
+                          <textarea 
+                            rows="2"
+                            value={item.talent} 
+                            onChange={(e) => updateItem(index, 'talent', e.target.value)} 
+                            className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                            placeholder="Target / AV..." 
+                          />
                         </td>
                         <td className="p-3.5">
                           <div className="flex items-center gap-3">
-                            <span className="font-bold text-[10px] uppercase text-slate-900">Cue Tone:</span>
+                            <span className="font-bold text-[10px] uppercase text-slate-900">Tone:</span>
                             <div className="flex gap-1.5">
                               {["#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#8b5cf6"].map(c => (
                                 <button 
                                   key={c}
                                   onClick={() => updateItem(index, 'color', c)}
                                   style={{ backgroundColor: c }}
-                                  className={`w-6 h-6 rounded-lg border-2 shadow transition ${item.color === c ? 'border-slate-900 scale-110' : 'border-white/50'}`}
+                                  className={`w-5 h-5 rounded-lg border shadow transition ${item.color === c ? 'border-slate-900 scale-110' : 'border-white/50'}`}
                                 />
                               ))}
                             </div>
@@ -1018,7 +1045,13 @@ export default function App() {
                         </td>
                         {customColumns.map((_, colIdx) => (
                           <td key={colIdx} className="p-3.5">
-                            <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" placeholder="Notes..." />
+                            <textarea 
+                              rows="2"
+                              value={item.customValues?.[colIdx] || ""} 
+                              onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} 
+                              className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                              placeholder="Notes..." 
+                            />
                           </td>
                         ))}
                         <td className="p-3.5 text-center">
@@ -1068,16 +1101,43 @@ export default function App() {
                         </div>
                       </td>
                       <td className="p-3.5">
-                        <div className="flex items-center gap-1 font-mono text-xs">
-                          <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className={`w-12 text-center p-1.5 border rounded-xl text-xs ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} />m
-                          <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className={`w-12 text-center p-1.5 border rounded-xl text-xs ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} />s
+                        <div className={`flex items-center gap-1.5 p-1.5 rounded-xl border shadow-sm ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                          <input 
+                            type="number" 
+                            value={item.min} 
+                            min="0" 
+                            onChange={(e) => updateItem(index, 'min', e.target.value)} 
+                            className={`w-9 text-center font-mono font-bold text-xs bg-transparent border-none outline-none ${isDark ? 'text-white' : 'text-slate-900'}`} 
+                          />
+                          <span className="text-[10px] font-bold opacity-60">m</span>
+                          <input 
+                            type="number" 
+                            value={item.sec} 
+                            min="0" 
+                            max="59" 
+                            onChange={(e) => updateItem(index, 'sec', e.target.value)} 
+                            className={`w-9 text-center font-mono font-bold text-xs bg-transparent border-none outline-none ${isDark ? 'text-white' : 'text-slate-900'}`} 
+                          />
+                          <span className="text-[10px] font-bold opacity-60">s</span>
                         </div>
                       </td>
                       <td className="p-3.5">
-                        <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className={`w-full p-2.5 border rounded-xl text-xs font-semibold shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="Segment Title..." />
+                        <textarea 
+                          rows="2"
+                          value={item.title} 
+                          onChange={(e) => updateItem(index, 'title', e.target.value)} 
+                          className={`w-full p-2.5 border rounded-xl text-xs font-semibold shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-600 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} 
+                          placeholder="Segment Title..." 
+                        />
                       </td>
                       <td className="p-3.5">
-                        <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className={`w-full p-2.5 border rounded-xl text-xs shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="Talent Name..." />
+                        <textarea 
+                          rows="2"
+                          value={item.talent} 
+                          onChange={(e) => updateItem(index, 'talent', e.target.value)} 
+                          className={`w-full p-2.5 border rounded-xl text-xs shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-600 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} 
+                          placeholder="Talent Name..." 
+                        />
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center justify-between gap-1 mb-2">
@@ -1094,12 +1154,18 @@ export default function App() {
                           onBlur={(e) => updateItem(index, 'script', e.target.innerHTML)}
                           dangerouslySetInnerHTML={{ __html: item.script }}
                           style={{ textTransform: item.isUpper ? 'uppercase' : 'none' }}
-                          className={`min-h-[75px] p-3 border rounded-xl text-xs outline-none focus:border-blue-600 overflow-y-auto shadow-inner ${isDark ? 'bg-slate-800/80 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-900'}`}
+                          className={`min-h-[80px] p-3 border rounded-xl text-xs outline-none focus:border-blue-600 overflow-y-auto shadow-inner ${isDark ? 'bg-slate-800/80 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-900'}`}
                         />
                       </td>
                       {customColumns.map((_, colIdx) => (
                         <td key={colIdx} className="p-3.5">
-                          <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className={`w-full p-2.5 border rounded-xl text-xs shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="Notes..." />
+                          <textarea 
+                            rows="2"
+                            value={item.customValues?.[colIdx] || ""} 
+                            onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} 
+                            className={`w-full p-2.5 border rounded-xl text-xs shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-600 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} 
+                            placeholder="Notes..." 
+                          />
                         </td>
                       ))}
                       <td className="p-3.5 text-center">
