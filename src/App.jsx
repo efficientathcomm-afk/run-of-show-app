@@ -1,4 +1,4 @@
-<selection-tag>import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -72,8 +72,8 @@ export default function App() {
           await signInAnonymously(auth);
         }
       } catch (err) {
-        console.warn("Auth initialization note (enable Anonymous auth in Firebase Console for cloud sync):", err);
-        setCloudSyncStatus("💾 Local Mode (Auth not enabled in Firebase)");
+        console.warn("Auth initialization note:", err);
+        setCloudSyncStatus("💾 Local Mode (Enable Anonymous auth in Firebase Console if cloud sync fails)");
         loadLocalShowsFallback();
       } finally {
         setAuthInitialized(true);
@@ -1068,3 +1068,4 @@ export default function App() {
 
     </div>
   );
+}
