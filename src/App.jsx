@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+<selection-tag>import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -14,7 +14,7 @@ const firebaseConfig = {
   measurementId: "G-JXKR1JSF24"
 };
 
-// Initialize Firebase Services safely with fallback for preview environment
+// Initialize Firebase Services safely with fallback for unconfigured Auth
 let app = null;
 let auth = null;
 let db = null;
@@ -25,7 +25,7 @@ try {
   auth = getAuth(app);
   db = getFirestore(app);
 } catch (e) {
-  console.log("Running in offline/local fallback mode due to initialization error:", e);
+  console.log("Running in offline/local fallback mode:", e);
 }
 
 export default function App() {
@@ -59,7 +59,7 @@ export default function App() {
   useEffect(() => {
     if (!auth || !db) {
       setAuthInitialized(true);
-      setCloudSyncStatus("💾 Local Storage Mode (Firebase not initialized)");
+      setCloudSyncStatus("💾 Local Storage Mode");
       loadLocalShowsFallback();
       return;
     }
@@ -72,8 +72,9 @@ export default function App() {
           await signInAnonymously(auth);
         }
       } catch (err) {
-        console.error("Auth initialization error:", err);
-        setCloudSyncStatus("⚠️ Auth Error - Local Mode");
+        console.warn("Auth initialization note (enable Anonymous auth in Firebase Console for cloud sync):", err);
+        setCloudSyncStatus("💾 Local Mode (Auth not enabled in Firebase)");
+        loadLocalShowsFallback();
       } finally {
         setAuthInitialized(true);
       }
@@ -1067,4 +1068,3 @@ export default function App() {
 
     </div>
   );
-}
