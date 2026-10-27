@@ -43,9 +43,8 @@ export default function App() {
   const [customColumns, setCustomColumns] = useState(["Audio / Cues", "Video / Slides", "Stage Notes"]);
   const [rundown, setRundown] = useState([]);
   
-  // Reusable Repository & Modal Editor State
+  // Reusable Repository State
   const [segmentRepo, setSegmentRepo] = useState([]);
-  const [editingItemIndex, setEditingItemIndex] = useState(null);
   const [repoSearch, setRepoSearch] = useState("");
 
   // Drag and Drop State
@@ -53,15 +52,16 @@ export default function App() {
 
   // Live Production Clocks State
   const [currentTimeStr, setCurrentTimeStr] = useState("");
-  const [elapsedShowSeconds, setElapsedShowSeconds] = useState(0);
 
   // Teleprompter State
   const [isPrompterPlaying, setIsPrompterPlaying] = useState(false);
   const [prompterSpeed, setPrompterSpeed] = useState(3);
+  const [prompterFontSize, setPrompterFontSize] = useState(32); // px
+  const [activePrompterIndex, setActivePrompterIndex] = useState(0); // Producer Mode active cue
   const prompterRef = useRef(null);
   const scrollTimerRef = useRef(null);
 
-  // Live Clock Tick & Show Countdown Engine
+  // Live Clock Tick Engine
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
@@ -188,7 +188,7 @@ export default function App() {
       startTime: "09:00:00",
       customColumns: ["Audio / Cues", "Video / Slides", "Stage Notes"],
       rundown: [
-        { id: "b1", type: "block", title: "ACT I: OPENING & WELCOME", color: "#6366f1" },
+        { id: "b1", type: "block", title: "ACT I: OPENING & WELCOME", color: "#3b82f6" },
         { id: "s1", type: "segment", min: 3, sec: 0, title: "Opening Remarks", talent: "Executive Producer", script: "Welcome esteemed guests to our 2026 keynote presentation!", customValues: ["Roll opening intro music", "Main presentation deck active", "Stage lights up full"], isLockedTime: false, lockedTimeStr: "" },
         { id: "c1", type: "cue", min: 0, sec: 15, title: "Roll Hype Video", talent: "AV Control", color: "#f59e0b", customValues: ["Video file: opening_reel_4k.mp4", "Audio preset 2", "Projector main up"], isLockedTime: false, lockedTimeStr: "" }
       ]
@@ -366,7 +366,7 @@ export default function App() {
       id: "blk_" + Date.now(),
       type: "block",
       title: "SECTION BREAK",
-      color: "#475569"
+      color: "#3b82f6"
     };
     const updated = [...rundown, item];
     setRundown(updated);
@@ -523,7 +523,7 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg md:text-xl font-black tracking-tight text-white">Run of Show Studio</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v3.2</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v3.4</span>
             </div>
             <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -569,7 +569,7 @@ export default function App() {
           </button>
           {activeShowId && (
             <button 
-              onClick={() => setCurrentView("prompter")} 
+              onClick={() => { setActivePrompterIndex(0); setCurrentView("prompter"); }} 
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-600/30 flex items-center gap-1.5"
             >
               📺 Teleprompter
@@ -613,7 +613,7 @@ export default function App() {
                     <h3 className={`font-bold text-base line-clamp-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>{show.title || "Untitled"}</h3>
                     <button 
                       onClick={(e) => handleDeleteShow(show.id, e)}
-                      className="text-slate-400 hover:text-rose-600 p-1 text-xs font-bold transition"
+                      className="w-7 h-7 rounded-full bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold transition"
                       title="Delete Show"
                     >
                       ✕
@@ -624,7 +624,7 @@ export default function App() {
                 <div className="flex items-center justify-between pt-3 border-t border-slate-800/10">
                   <span className="text-xs font-bold text-blue-500">Open Studio →</span>
                   <button 
-                    onClick={(e) => { e.stopPropagation(); setActiveShowId(show.id); setCurrentView("prompter"); }}
+                    onClick={(e) => { e.stopPropagation(); setActiveShowId(show.id); setActivePrompterIndex(0); setCurrentView("prompter"); }}
                     className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-1 rounded-lg font-bold transition"
                   >
                     📺 Prompter
@@ -674,9 +674,10 @@ export default function App() {
                           if (user && db) setDoc(doc(db, 'artifacts', appId, 'public', 'segment_repo'), { items: updated });
                           else localStorage.setItem("ros_repo_v3", JSON.stringify(updated));
                         }} 
-                        className="text-rose-500 hover:text-rose-700 text-xs font-bold"
+                        className="w-7 h-7 rounded-full bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold transition"
+                        title="Delete"
                       >
-                        Delete
+                        ✕
                       </button>
                     </div>
                     <div className="flex gap-4 text-xs text-slate-400 mb-3">
@@ -703,64 +704,148 @@ export default function App() {
         </main>
       )}
 
-      {/* VIEW 3: FULLSCREEN TELEPROMPTER */}
+      {/* VIEW 3: FULLSCREEN TELEPROMPTER WITH PRODUCER MODE */}
       {currentView === "prompter" && (
-        <div className="fixed inset-0 bg-black z-50 p-6 flex flex-col text-white animate-fade-in">
-          <div className="absolute top-4 right-6 bg-slate-900/95 border border-slate-700 p-3 rounded-2xl flex items-center gap-4 shadow-2xl z-50">
-            <span className="text-xs px-3 py-1 rounded-full bg-emerald-600 font-bold">🟢 Live Prompter</span>
-            <button 
-              onClick={() => setIsPrompterPlaying(!isPrompterPlaying)}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-xl text-xs font-bold shadow"
-            >
-              {isPrompterPlaying ? "⏸ Pause" : "▶ Play Scroll"}
-            </button>
-            <label className="text-xs flex items-center gap-2">
-              Speed:
-              <input 
-                type="range" 
-                min="1" 
-                max="10" 
-                value={prompterSpeed} 
-                onChange={(e) => setPrompterSpeed(parseInt(e.target.value))}
-                className="cursor-pointer accent-blue-500"
-              />
-            </label>
-            <button 
-              onClick={() => setCurrentView("editor")}
-              className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition"
-            >
-              Close
-            </button>
-          </div>
+        <div className="fixed inset-0 bg-black z-50 flex flex-col text-white animate-fade-in w-screen h-screen">
+          {/* Sticky Teleprompter Control Room Header */}
+          <header className="bg-slate-900/95 border-b border-slate-800 px-6 py-3 flex flex-wrap items-center justify-between gap-4 z-50 backdrop-blur shadow-xl w-full">
+            <div className="flex items-center gap-4">
+              <span className="text-xs px-3 py-1 rounded-full bg-emerald-600 font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                LIVE PROMPTER & PRODUCER MODE
+              </span>
+              <div className="hidden md:flex items-center gap-4 text-xs font-mono bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                <span>TIME: <strong className="text-amber-400">{currentTimeStr}</strong></span>
+              </div>
+            </div>
 
-          <div ref={prompterRef} className="flex-1 overflow-y-auto max-w-4xl mx-auto my-20 px-4 text-2xl md:text-3xl leading-relaxed">
-            <h1 className="text-4xl font-black text-sky-400 mb-8 pb-4 border-b border-slate-800">{showTitle}</h1>
-            {activeTimedRundown.map((item, idx) => {
-              if (item.type === "block") {
-                return (
-                  <div key={idx} style={{ backgroundColor: item.color }} className="p-4 my-8 font-bold text-xl uppercase rounded-xl shadow-lg text-white">
-                    {item.title || "SECTION"}
-                  </div>
-                );
-              }
-              if (item.type === "cue") {
-                return (
-                  <div key={idx} style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff" }} className="p-4 my-6 font-bold rounded-xl shadow text-lg">
-                    [CUE {item.calculatedTime}] {item.title || 'Cue'} {item.talent ? `| Target: ${item.talent}` : ''}
-                  </div>
-                );
-              }
-              if (item.type === "segment" && item.script && item.script.replace(/<[^>]*>/g, '').trim() !== "") {
-                return (
-                  <div key={idx} className="mb-10 pb-6 border-b border-slate-800">
-                    <div className="text-sky-400 font-bold text-lg mb-1">[{item.calculatedTime}] {item.title || 'Segment'}</div>
-                    {item.talent && <div className="text-amber-400 text-base font-semibold mb-3">🎙️ {item.talent}</div>}
-                    <div style={{ textTransform: item.isUpper ? 'uppercase' : 'none' }} dangerouslySetInnerHTML={{ __html: item.script }} />
-                  </div>
-                );
-              }
-              return null;
-            })}
+            <div className="flex flex-wrap items-center gap-3">
+              <button 
+                onClick={() => setIsPrompterPlaying(!isPrompterPlaying)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow ${isPrompterPlaying ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+              >
+                {isPrompterPlaying ? "⏸ Pause Auto-Scroll" : "▶ Play Auto-Scroll"}
+              </button>
+
+              <label className="text-xs flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                Speed:
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="10" 
+                  value={prompterSpeed} 
+                  onChange={(e) => setPrompterSpeed(parseInt(e.target.value))}
+                  className="cursor-pointer accent-blue-500 w-20"
+                />
+              </label>
+
+              <div className="flex items-center gap-1 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
+                <span>Text Size:</span>
+                <button onClick={() => setPrompterFontSize(Math.max(20, prompterFontSize - 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A-</button>
+                <span className="font-mono w-6 text-center">{prompterFontSize}</span>
+                <button onClick={() => setPrompterFontSize(Math.min(60, prompterFontSize + 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A+</button>
+              </div>
+
+              <button 
+                onClick={() => setCurrentView("editor")}
+                className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow"
+              >
+                Exit Prompter
+              </button>
+            </div>
+          </header>
+
+          {/* Prompter Body & Producer Mode Navigator */}
+          <div className="flex-1 flex overflow-hidden w-full">
+            {/* Main Full-Width Teleprompter Feed */}
+            <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-12 leading-relaxed w-full" style={{ fontSize: `${prompterFontSize}px` }}>
+              <div className="max-w-5xl mx-auto w-full">
+                <h1 className="text-3xl md:text-5xl font-black text-sky-400 mb-10 pb-6 border-b border-slate-800 tracking-tight">{showTitle}</h1>
+                {activeTimedRundown.map((item, idx) => {
+                  const isCurrentProducerCue = activePrompterIndex === idx;
+
+                  if (item.type === "block") {
+                    return (
+                      <div 
+                        key={item.id || idx} 
+                        style={{ backgroundColor: item.color }} 
+                        className={`p-6 my-10 font-bold uppercase rounded-2xl shadow-2xl text-white tracking-wide transition-all ${isCurrentProducerCue ? 'ring-4 ring-white scale-[1.01]' : ''}`}
+                      >
+                        {item.title || "SECTION"}
+                      </div>
+                    );
+                  }
+                  if (item.type === "cue") {
+                    return (
+                      <div 
+                        key={item.id || idx} 
+                        style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff" }} 
+                        className={`p-5 my-8 font-bold rounded-2xl shadow-xl transition-all ${isCurrentProducerCue ? 'ring-4 ring-white scale-[1.01]' : ''}`}
+                      >
+                        [CUE {item.calculatedTime}] {item.title || 'Cue'} {item.talent ? `| Target: ${item.talent}` : ''}
+                      </div>
+                    );
+                  }
+                  if (item.type === "segment" && item.script && item.script.replace(/<[^>]*>/g, '').trim() !== "") {
+                    return (
+                      <div 
+                        key={item.id || idx} 
+                        className={`mb-16 pb-8 border-b border-slate-800 transition-all ${isCurrentProducerCue ? 'bg-slate-900/60 p-6 rounded-2xl border-2 border-sky-500 shadow-2xl' : ''}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sky-400 font-mono font-bold text-lg md:text-xl">[{item.calculatedTime}] {item.title || 'Segment'}</span>
+                          <span className="text-xs font-mono text-slate-400">Dur: {item.min}m {item.sec}s</span>
+                        </div>
+                        {item.talent && <div className="text-amber-400 font-semibold mb-4 text-base md:text-lg">🎙️ {item.talent}</div>}
+                        <div 
+                          className="prose prose-invert max-w-none text-slate-100 font-medium"
+                          style={{ textTransform: item.isUpper ? 'uppercase' : 'none', fontSize: `${prompterFontSize}px`, lineHeight: '1.6' }}
+                          dangerouslySetInnerHTML={{ __html: item.script }} 
+                        />
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            </div>
+
+            {/* Producer Mode Sidebar (Quick Jump & Cue Control) */}
+            <aside className="w-80 bg-slate-900 border-l border-slate-800 p-4 hidden xl:flex flex-col">
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+                <h3 className="font-black text-xs uppercase tracking-wider text-slate-300">Producer Cue Control</h3>
+                <span className="text-[10px] font-mono bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded">Live Tracker</span>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                {activeTimedRundown.map((item, idx) => (
+                  <button 
+                    key={item.id || idx}
+                    onClick={() => setActivePrompterIndex(idx)}
+                    className={`w-full text-left p-3 rounded-xl border text-xs transition flex flex-col gap-1 ${activePrompterIndex === idx ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'}`}
+                  >
+                    <div className="flex justify-between font-mono text-[10px] opacity-80">
+                      <span>{item.calculatedTime || "BLOCK"}</span>
+                      <span>{item.type.toUpperCase()}</span>
+                    </div>
+                    <div className="font-bold truncate">{item.title || "Untitled"}</div>
+                  </button>
+                ))}
+              </div>
+              <div className="pt-3 border-t border-slate-800 flex gap-2">
+                <button 
+                  onClick={() => setActivePrompterIndex(Math.max(0, activePrompterIndex - 1))}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-xl text-xs font-bold"
+                >
+                  ◀ Prev Cue
+                </button>
+                <button 
+                  onClick={() => setActivePrompterIndex(Math.min(activeTimedRundown.length - 1, activePrompterIndex + 1))}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 py-2 rounded-xl text-xs font-bold"
+                >
+                  Next Cue ▶
+                </button>
+              </div>
+            </aside>
           </div>
         </div>
       )}
@@ -801,7 +886,7 @@ export default function App() {
             <button onClick={addCue} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-lg shadow-amber-600/20 transition flex items-center gap-1.5">+ Add Cue</button>
             <button onClick={addBlock} className="bg-slate-700 hover:bg-slate-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">+ Add Section Block</button>
             <button onClick={addColumn} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">+ Add Column</button>
-            <button onClick={() => setCurrentView("prompter")} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">📺 Prompter</button>
+            <button onClick={() => { setActivePrompterIndex(0); setCurrentView("prompter"); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">📺 Prompter</button>
             <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3.5 py-2 rounded-xl text-xs shadow transition">📄 Print PDF</button>
           </div>
 
@@ -817,10 +902,16 @@ export default function App() {
                   <th className="p-3.5 w-[130px]">Talent</th>
                   <th className="p-3.5 w-[340px]">Script & Cue Notes</th>
                   {customColumns.map((col, idx) => (
-                    <th key={idx} className="p-3.5 w-[140px]">
+                    <th key={idx} className="p-3.5 w-[160px]">
                       <div className="flex items-center justify-between gap-2">
-                        <span>{col}</span>
-                        <button onClick={() => removeColumn(idx)} className="bg-rose-500 hover:bg-rose-700 text-white text-[10px] px-1.5 py-0.5 rounded transition">✕</button>
+                        <span className="truncate">{col}</span>
+                        <button 
+                          onClick={() => removeColumn(idx)} 
+                          className="w-5 h-5 rounded-full bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white flex items-center justify-center text-[10px] font-bold transition flex-shrink-0"
+                          title="Delete Column"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </th>
                   ))}
@@ -835,7 +926,7 @@ export default function App() {
                     const colSpanCount = 7 + customColumns.length;
                     return (
                       <tr 
-                        key={item.id} 
+                        key={item.id || index} 
                         draggable 
                         onDragStart={(e) => handleDragStart(e, index)}
                         onDragOver={(e) => handleDragOver(e, index)}
@@ -846,15 +937,17 @@ export default function App() {
                         <td className="p-3 text-center text-white/70 font-bold">⋮⋮</td>
                         <td colSpan={colSpanCount - 2} className="p-3">
                           <div className="flex items-center gap-3">
-                            {/* Modern Sleek Color Picker */}
-                            <div className="relative flex items-center">
-                              <input 
-                                type="color" 
-                                value={item.color} 
-                                onChange={(e) => updateItem(index, 'color', e.target.value)}
-                                className="w-7 h-7 rounded-lg border border-white/30 cursor-pointer bg-transparent opacity-0 absolute inset-0 z-10"
-                              />
-                              <div style={{ backgroundColor: item.color }} className="w-7 h-7 rounded-lg border border-white/40 shadow-inner flex items-center justify-center text-xs">🎨</div>
+                            {/* Simple Preset Color Selector for Blocks */}
+                            <div className="flex items-center gap-1.5 bg-black/30 p-1.5 rounded-xl">
+                              {["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#475569"].map(c => (
+                                <button
+                                  key={c}
+                                  onClick={() => updateItem(index, 'color', c)}
+                                  style={{ backgroundColor: c }}
+                                  className={`w-6 h-6 rounded-lg border shadow transition ${item.color === c ? 'border-white scale-110 ring-2 ring-white/50' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                                  title={`Select color ${c}`}
+                                />
+                              ))}
                             </div>
                             <input 
                               type="text" 
@@ -866,10 +959,16 @@ export default function App() {
                           </div>
                         </td>
                         <td className="p-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => moveRow(index, -1)} className="bg-black/30 hover:bg-black/50 text-white text-xs px-2 py-1 rounded-lg">▲</button>
-                            <button onClick={() => moveRow(index, 1)} className="bg-black/30 hover:bg-black/50 text-white text-xs px-2 py-1 rounded-lg">▼</button>
-                            <button onClick={() => deleteRow(index)} className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1 rounded-lg font-bold">Del</button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button onClick={() => moveRow(index, -1)} className="w-7 h-7 rounded-xl bg-black/30 hover:bg-black/50 text-white text-xs flex items-center justify-center transition" title="Move Up">▲</button>
+                            <button onClick={() => moveRow(index, 1)} className="w-7 h-7 rounded-xl bg-black/30 hover:bg-black/50 text-white text-xs flex items-center justify-center transition" title="Move Down">▼</button>
+                            <button 
+                              onClick={() => deleteRow(index)} 
+                              className="w-7 h-7 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs flex items-center justify-center font-bold transition shadow"
+                              title="Delete Row"
+                            >
+                              ✕
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -880,7 +979,7 @@ export default function App() {
                   if (item.type === "cue") {
                     return (
                       <tr 
-                        key={item.id} 
+                        key={item.id || index} 
                         draggable 
                         onDragStart={(e) => handleDragStart(e, index)}
                         onDragOver={(e) => handleDragOver(e, index)}
@@ -892,15 +991,15 @@ export default function App() {
                         <td className="p-3.5 font-mono font-bold text-xs text-slate-900">{item.calculatedTime}</td>
                         <td className="p-3.5">
                           <div className="flex items-center gap-1 font-mono text-xs">
-                            <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className="w-10 text-center p-1 border rounded-lg bg-white text-slate-900 text-xs shadow-sm" />m
-                            <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className="w-10 text-center p-1 border rounded-lg bg-white text-slate-900 text-xs shadow-sm" />s
+                            <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className="w-12 text-center p-1.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" />m
+                            <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className="w-12 text-center p-1.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" />s
                           </div>
                         </td>
                         <td className="p-3.5">
-                          <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className="w-full p-2 border rounded-xl bg-white text-slate-900 text-xs font-semibold shadow-sm" placeholder="Cue Title..." />
+                          <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs font-semibold shadow-sm" placeholder="Cue Title..." />
                         </td>
                         <td className="p-3.5">
-                          <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className="w-full p-2 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" placeholder="Target / AV..." />
+                          <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" placeholder="Target / AV..." />
                         </td>
                         <td className="p-3.5">
                           <div className="flex items-center gap-3">
@@ -919,14 +1018,20 @@ export default function App() {
                         </td>
                         {customColumns.map((_, colIdx) => (
                           <td key={colIdx} className="p-3.5">
-                            <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className="w-full p-2 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" placeholder="Notes..." />
+                            <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm" placeholder="Notes..." />
                           </td>
                         ))}
                         <td className="p-3.5 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button onClick={() => moveRow(index, -1)} className="bg-slate-700 text-white text-xs px-2 py-1 rounded-lg">▲</button>
-                            <button onClick={() => moveRow(index, 1)} className="bg-slate-700 text-white text-xs px-2 py-1 rounded-lg">▼</button>
-                            <button onClick={() => deleteRow(index)} className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1 rounded-lg font-bold">Del</button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button onClick={() => moveRow(index, -1)} className="w-7 h-7 rounded-xl bg-slate-700 text-white text-xs flex items-center justify-center transition" title="Move Up">▲</button>
+                            <button onClick={() => moveRow(index, 1)} className="w-7 h-7 rounded-xl bg-slate-700 text-white text-xs flex items-center justify-center transition" title="Move Down">▼</button>
+                            <button 
+                              onClick={() => deleteRow(index)} 
+                              className="w-7 h-7 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs flex items-center justify-center font-bold transition shadow"
+                              title="Delete Row"
+                            >
+                              ✕
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -936,7 +1041,7 @@ export default function App() {
                   // STANDARD SEGMENT ROW
                   return (
                     <tr 
-                      key={item.id} 
+                      key={item.id || index} 
                       draggable 
                       onDragStart={(e) => handleDragStart(e, index)}
                       onDragOver={(e) => handleDragOver(e, index)}
@@ -945,7 +1050,7 @@ export default function App() {
                     >
                       <td className={`p-3.5 text-center font-bold ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>⋮⋮</td>
                       <td className="p-3.5">
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1.5">
                           <span className={`font-mono font-bold text-xs ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{item.calculatedTime}</span>
                           <button 
                             onClick={() => {
@@ -956,7 +1061,7 @@ export default function App() {
                               setRundown(updated);
                               persistShow(showTitle, startTime, customColumns, updated);
                             }}
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition w-max ${item.isLockedTime ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800/20 text-slate-400 hover:text-slate-200'}`}
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-lg transition w-max ${item.isLockedTime ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800/20 text-slate-400 hover:text-slate-200'}`}
                           >
                             {item.isLockedTime ? '🔒 Hard Start' : '🔓 Auto Time'}
                           </button>
@@ -964,24 +1069,24 @@ export default function App() {
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-1 font-mono text-xs">
-                          <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className={`w-10 text-center p-1 border rounded-lg text-xs ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} />m
-                          <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className={`w-10 text-center p-1 border rounded-lg text-xs ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} />s
+                          <input type="number" value={item.min} min="0" onChange={(e) => updateItem(index, 'min', e.target.value)} className={`w-12 text-center p-1.5 border rounded-xl text-xs ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} />m
+                          <input type="number" value={item.sec} min="0" max="59" onChange={(e) => updateItem(index, 'sec', e.target.value)} className={`w-12 text-center p-1.5 border rounded-xl text-xs ${isDark ? 'bg-slate-800 border-slate-700 text-white' : ''}`} />s
                         </div>
                       </td>
                       <td className="p-3.5">
-                        <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className={`w-full p-2 border rounded-xl text-xs font-semibold shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="Segment Title..." />
+                        <input type="text" value={item.title} onChange={(e) => updateItem(index, 'title', e.target.value)} className={`w-full p-2.5 border rounded-xl text-xs font-semibold shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="Segment Title..." />
                       </td>
                       <td className="p-3.5">
-                        <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className={`w-full p-2 border rounded-xl text-xs shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="Talent Name..." />
+                        <input type="text" value={item.talent} onChange={(e) => updateItem(index, 'talent', e.target.value)} className={`w-full p-2.5 border rounded-xl text-xs shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="Talent Name..." />
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center justify-between gap-1 mb-2">
-                          <div className="flex gap-1">
-                            <button onClick={() => document.execCommand('bold')} className="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 text-[11px] rounded font-bold shadow">B</button>
-                            <button onClick={() => document.execCommand('italic')} className="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 text-[11px] rounded italic shadow">I</button>
-                            <button onClick={() => updateItem(index, 'isUpper', !item.isUpper)} className={`px-2 py-0.5 text-[11px] rounded font-semibold shadow ${item.isUpper ? 'bg-blue-600 text-white' : 'bg-slate-800 text-white'}`}>CAPS</button>
+                          <div className="flex gap-1.5">
+                            <button onClick={() => document.execCommand('bold')} className="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1 text-[11px] rounded-lg font-bold shadow">B</button>
+                            <button onClick={() => document.execCommand('italic')} className="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1 text-[11px] rounded-lg italic shadow">I</button>
+                            <button onClick={() => updateItem(index, 'isUpper', !item.isUpper)} className={`px-2.5 py-1 text-[11px] rounded-lg font-semibold shadow ${item.isUpper ? 'bg-blue-600 text-white' : 'bg-slate-800 text-white'}`}>CAPS</button>
                           </div>
-                          <button onClick={() => saveToRepo(item)} className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 text-[10px] font-bold px-2 py-0.5 rounded-lg transition">💾 Save to Repo</button>
+                          <button onClick={() => saveToRepo(item)} className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 text-[10px] font-bold px-2.5 py-1 rounded-xl transition">💾 Save to Repo</button>
                         </div>
                         <div 
                           contentEditable={true} 
@@ -989,19 +1094,25 @@ export default function App() {
                           onBlur={(e) => updateItem(index, 'script', e.target.innerHTML)}
                           dangerouslySetInnerHTML={{ __html: item.script }}
                           style={{ textTransform: item.isUpper ? 'uppercase' : 'none' }}
-                          className={`min-h-[65px] p-2.5 border rounded-xl text-xs outline-none focus:border-blue-600 overflow-y-auto shadow-inner ${isDark ? 'bg-slate-800/80 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-900'}`}
+                          className={`min-h-[75px] p-3 border rounded-xl text-xs outline-none focus:border-blue-600 overflow-y-auto shadow-inner ${isDark ? 'bg-slate-800/80 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-900'}`}
                         />
                       </td>
                       {customColumns.map((_, colIdx) => (
                         <td key={colIdx} className="p-3.5">
-                          <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className={`w-full p-2 border rounded-xl text-xs shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="Notes..." />
+                          <input type="text" value={item.customValues?.[colIdx] || ""} onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} className={`w-full p-2.5 border rounded-xl text-xs shadow-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} placeholder="Notes..." />
                         </td>
                       ))}
                       <td className="p-3.5 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => moveRow(index, -1)} className="bg-slate-700 hover:bg-slate-600 text-white text-xs px-2 py-1 rounded-lg">▲</button>
-                          <button onClick={() => moveRow(index, 1)} className="bg-slate-700 hover:bg-slate-600 text-white text-xs px-2 py-1 rounded-lg">▼</button>
-                          <button onClick={() => deleteRow(index)} className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1 rounded-lg font-bold">Del</button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button onClick={() => moveRow(index, -1)} className="w-7 h-7 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs flex items-center justify-center transition" title="Move Up">▲</button>
+                          <button onClick={() => moveRow(index, 1)} className="w-7 h-7 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs flex items-center justify-center transition" title="Move Down">▼</button>
+                          <button 
+                            onClick={() => deleteRow(index)} 
+                            className="w-7 h-7 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs flex items-center justify-center font-bold transition shadow"
+                            title="Delete Row"
+                          >
+                            ✕
+                          </button>
                         </div>
                       </td>
                     </tr>
