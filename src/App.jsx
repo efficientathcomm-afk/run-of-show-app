@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 
-// Firebase configuration setup
+// Exact Firebase project configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAgf7qX4HarmphjjhhTcj0m_mW5SzYYGMk",
   authDomain: "run-of-show-790f7.firebaseapp.com",
@@ -17,7 +17,7 @@ const firebaseConfig = {
 let app = null;
 let auth = null;
 let db = null;
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'run-of-show-v3';
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'run-of-show-studio-v4';
 
 try {
   app = initializeApp(firebaseConfig);
@@ -25,6 +25,29 @@ try {
   db = getFirestore(app);
 } catch (e) {
   console.warn("Offline fallback mode active:", e);
+}
+
+// Auto-resizing textarea component for all table fields
+function AutoTextarea({ value, onChange, placeholder, className, rows = 1 }) {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      rows={rows}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={`${className} overflow-hidden resize-none transition-all`}
+    />
+  );
 }
 
 export default function App() {
@@ -60,6 +83,9 @@ export default function App() {
   const [activePrompterIndex, setActivePrompterIndex] = useState(0); // Producer Mode active cue
   const prompterRef = useRef(null);
   const scrollTimerRef = useRef(null);
+
+  // Active Duration Popup State (itemID -> boolean)
+  const [openDurationPopup, setOpenDurationPopup] = useState(null);
 
   // Live Clock Tick Engine
   useEffect(() => {
@@ -147,8 +173,8 @@ export default function App() {
 
   const loadLocalFallback = () => {
     try {
-      const savedList = localStorage.getItem("ros_shows_v3");
-      const savedRepo = localStorage.getItem("ros_repo_v3");
+      const savedList = localStorage.getItem("ros_shows_v4");
+      const savedRepo = localStorage.getItem("ros_repo_v4");
       if (savedRepo) setSegmentRepo(JSON.parse(savedRepo));
       if (savedList) {
         const parsed = JSON.parse(savedList);
@@ -169,7 +195,7 @@ export default function App() {
 
   const loadLocalShow = (id) => {
     try {
-      const showData = localStorage.getItem(`ros_show_v3_${id}`);
+      const showData = localStorage.getItem(`ros_show_v4_${id}`);
       if (showData) {
         const parsed = JSON.parse(showData);
         setShowTitle(parsed.showTitle);
@@ -189,8 +215,8 @@ export default function App() {
       customColumns: ["Audio / Cues", "Video / Slides", "Stage Notes"],
       rundown: [
         { id: "b1", type: "block", title: "ACT I: OPENING & WELCOME", color: "#3b82f6" },
-        { id: "s1", type: "segment", min: 3, sec: 0, title: "Opening Remarks", talent: "Executive Producer", script: "Welcome esteemed guests to our 2026 keynote presentation!", customValues: ["Roll opening intro music", "Main presentation deck active", "Stage lights up full"], isLockedTime: false, lockedTimeStr: "" },
-        { id: "c1", type: "cue", min: 0, sec: 15, title: "Roll Hype Video", talent: "AV Control", color: "#f59e0b", customValues: ["Video file: opening_reel_4k.mp4", "Audio preset 2", "Projector main up"], isLockedTime: false, lockedTimeStr: "" }
+        { id: "s1", type: "segment", min: 3, sec: 0, title: "Opening Remarks", talent: "Executive Producer", script: "Welcome esteemed guests to our keynote presentation!", customValues: ["Roll opening intro music", "Main presentation deck active", "Stage lights up full"], isLockedTime: false, lockedTimeStr: "" },
+        { id: "c1", type: "cue", min: 0, sec: 15, title: "Roll Hype Video", talent: "AV Control", color: "#f59e0b", customValues: ["Video file: opening_reel.mp4", "Audio preset 2", "Projector main up"], isLockedTime: false, lockedTimeStr: "" }
       ]
     };
     setActiveShowId(newId);
@@ -235,10 +261,10 @@ export default function App() {
       }
     } else {
       try {
-        localStorage.setItem(`ros_show_v3_${activeShowId}`, JSON.stringify(showPayload));
+        localStorage.setItem(`ros_show_v4_${activeShowId}`, JSON.stringify(showPayload));
         const updatedList = showsList.map(s => s.id === activeShowId ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s);
         setShowsList(updatedList);
-        localStorage.setItem("ros_shows_v3", JSON.stringify(updatedList));
+        localStorage.setItem("ros_shows_v4", JSON.stringify(updatedList));
       } catch (e) {}
     }
   };
@@ -282,7 +308,7 @@ export default function App() {
     } else {
       setShowsList(updated);
       if (activeShowId === id && updated.length > 0) setActiveShowId(updated[0].id);
-      localStorage.setItem("ros_shows_v3", JSON.stringify(updated));
+      localStorage.setItem("ros_shows_v4", JSON.stringify(updated));
     }
   };
 
@@ -471,7 +497,7 @@ export default function App() {
         .then(() => alert("Saved to Reusable Repository!"))
         .catch(err => alert("Permission denied."));
     } else {
-      localStorage.setItem("ros_repo_v3", JSON.stringify(updatedRepo));
+      localStorage.setItem("ros_repo_v4", JSON.stringify(updatedRepo));
       alert("Saved to Reusable Repository!");
     }
   };
@@ -523,7 +549,7 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg md:text-xl font-black tracking-tight text-white">Run of Show Studio</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v3.5</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v4.0</span>
             </div>
             <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -672,7 +698,7 @@ export default function App() {
                           const updated = segmentRepo.filter(i => i.id !== item.id);
                           setSegmentRepo(updated);
                           if (user && db) setDoc(doc(db, 'artifacts', appId, 'public', 'segment_repo'), { items: updated });
-                          else localStorage.setItem("ros_repo_v3", JSON.stringify(updated));
+                          else localStorage.setItem("ros_repo_v4", JSON.stringify(updated));
                         }} 
                         className="w-7 h-7 rounded-full bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold transition"
                         title="Delete"
@@ -989,42 +1015,59 @@ export default function App() {
                       >
                         <td className="p-3.5 text-center text-slate-700 font-bold">⋮⋮</td>
                         <td className="p-3.5 font-mono font-bold text-xs text-slate-900">{item.calculatedTime}</td>
-                        <td className="p-3.5">
-                          <div className="flex items-center gap-1.5 bg-white/60 p-1.5 rounded-xl border border-black/10 shadow-sm">
-                            <input 
-                              type="number" 
-                              value={item.min} 
-                              min="0" 
-                              onChange={(e) => updateItem(index, 'min', e.target.value)} 
-                              className="w-9 text-center font-mono font-bold text-xs bg-transparent border-none outline-none" 
-                            />
-                            <span className="text-[10px] font-bold opacity-70">m</span>
-                            <input 
-                              type="number" 
-                              value={item.sec} 
-                              min="0" 
-                              max="59" 
-                              onChange={(e) => updateItem(index, 'sec', e.target.value)} 
-                              className="w-9 text-center font-mono font-bold text-xs bg-transparent border-none outline-none" 
-                            />
-                            <span className="text-[10px] font-bold opacity-70">s</span>
+                        <td className="p-3.5 relative">
+                          <div 
+                            onClick={() => setOpenDurationPopup(openDurationPopup === item.id ? null : item.id)}
+                            className="bg-white/70 hover:bg-white px-3 py-1.5 rounded-xl border border-black/10 shadow-sm font-mono text-xs font-bold text-slate-900 cursor-pointer text-center select-none"
+                          >
+                            {item.min}m {item.sec}s ⏱️
                           </div>
+                          {openDurationPopup === item.id && (
+                            <div className="absolute z-50 top-12 left-0 bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700 w-48 flex flex-col gap-3">
+                              <div className="text-[10px] uppercase font-bold text-slate-400">Edit Duration</div>
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs">Min:</label>
+                                <input 
+                                  type="number" 
+                                  value={item.min} 
+                                  min="0" 
+                                  onChange={(e) => updateItem(index, 'min', Math.max(0, parseInt(e.target.value) || 0))} 
+                                  className="w-16 bg-slate-800 text-white border border-slate-700 rounded-lg p-1 text-xs text-center font-mono" 
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs">Sec:</label>
+                                <input 
+                                  type="number" 
+                                  value={item.sec} 
+                                  min="0" 
+                                  max="59" 
+                                  onChange={(e) => updateItem(index, 'sec', Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} 
+                                  className="w-16 bg-slate-800 text-white border border-slate-700 rounded-lg p-1 text-xs text-center font-mono" 
+                                />
+                              </div>
+                              <button 
+                                onClick={() => setOpenDurationPopup(null)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 rounded-xl"
+                              >
+                                Done
+                              </button>
+                            </div>
+                          )}
                         </td>
                         <td className="p-3.5">
-                          <textarea 
-                            rows="2"
+                          <AutoTextarea
                             value={item.title} 
                             onChange={(e) => updateItem(index, 'title', e.target.value)} 
-                            className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs font-semibold shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                            className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                             placeholder="Cue Title..." 
                           />
                         </td>
                         <td className="p-3.5">
-                          <textarea 
-                            rows="2"
+                          <AutoTextarea
                             value={item.talent} 
                             onChange={(e) => updateItem(index, 'talent', e.target.value)} 
-                            className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                            className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                             placeholder="Target / AV..." 
                           />
                         </td>
@@ -1045,11 +1088,10 @@ export default function App() {
                         </td>
                         {customColumns.map((_, colIdx) => (
                           <td key={colIdx} className="p-3.5">
-                            <textarea 
-                              rows="2"
+                            <AutoTextarea
                               value={item.customValues?.[colIdx] || ""} 
                               onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} 
-                              className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                              className="w-full p-2.5 border rounded-xl bg-white text-slate-900 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
                               placeholder="Notes..." 
                             />
                           </td>
@@ -1100,42 +1142,59 @@ export default function App() {
                           </button>
                         </div>
                       </td>
-                      <td className="p-3.5">
-                        <div className={`flex items-center gap-1.5 p-1.5 rounded-xl border shadow-sm ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-                          <input 
-                            type="number" 
-                            value={item.min} 
-                            min="0" 
-                            onChange={(e) => updateItem(index, 'min', e.target.value)} 
-                            className={`w-9 text-center font-mono font-bold text-xs bg-transparent border-none outline-none ${isDark ? 'text-white' : 'text-slate-900'}`} 
-                          />
-                          <span className="text-[10px] font-bold opacity-60">m</span>
-                          <input 
-                            type="number" 
-                            value={item.sec} 
-                            min="0" 
-                            max="59" 
-                            onChange={(e) => updateItem(index, 'sec', e.target.value)} 
-                            className={`w-9 text-center font-mono font-bold text-xs bg-transparent border-none outline-none ${isDark ? 'text-white' : 'text-slate-900'}`} 
-                          />
-                          <span className="text-[10px] font-bold opacity-60">s</span>
+                      <td className="p-3.5 relative">
+                        <div 
+                          onClick={() => setOpenDurationPopup(openDurationPopup === item.id ? null : item.id)}
+                          className={`px-3 py-1.5 rounded-xl border shadow-sm font-mono text-xs font-bold cursor-pointer text-center select-none ${isDark ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'}`}
+                        >
+                          {item.min}m {item.sec}s ⏱️
                         </div>
+                        {openDurationPopup === item.id && (
+                          <div className="absolute z-50 top-12 left-0 bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700 w-48 flex flex-col gap-3">
+                            <div className="text-[10px] uppercase font-bold text-slate-400">Edit Duration</div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs">Min:</label>
+                              <input 
+                                type="number" 
+                                value={item.min} 
+                                min="0" 
+                                onChange={(e) => updateItem(index, 'min', Math.max(0, parseInt(e.target.value) || 0))} 
+                                className="w-16 bg-slate-800 text-white border border-slate-700 rounded-lg p-1 text-xs text-center font-mono" 
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs">Sec:</label>
+                              <input 
+                                type="number" 
+                                value={item.sec} 
+                                min="0" 
+                                max="59" 
+                                onChange={(e) => updateItem(index, 'sec', Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} 
+                                className="w-16 bg-slate-800 text-white border border-slate-700 rounded-lg p-1 text-xs text-center font-mono" 
+                              />
+                            </div>
+                            <button 
+                              onClick={() => setOpenDurationPopup(null)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 rounded-xl"
+                            >
+                              Done
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="p-3.5">
-                        <textarea 
-                          rows="2"
+                        <AutoTextarea
                           value={item.title} 
                           onChange={(e) => updateItem(index, 'title', e.target.value)} 
-                          className={`w-full p-2.5 border rounded-xl text-xs font-semibold shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-600 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} 
+                          className={`w-full p-2.5 border rounded-xl text-xs font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} 
                           placeholder="Segment Title..." 
                         />
                       </td>
                       <td className="p-3.5">
-                        <textarea 
-                          rows="2"
+                        <AutoTextarea
                           value={item.talent} 
                           onChange={(e) => updateItem(index, 'talent', e.target.value)} 
-                          className={`w-full p-2.5 border rounded-xl text-xs shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-600 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} 
+                          className={`w-full p-2.5 border rounded-xl text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} 
                           placeholder="Talent Name..." 
                         />
                       </td>
@@ -1159,11 +1218,10 @@ export default function App() {
                       </td>
                       {customColumns.map((_, colIdx) => (
                         <td key={colIdx} className="p-3.5">
-                          <textarea 
-                            rows="2"
+                          <AutoTextarea
                             value={item.customValues?.[colIdx] || ""} 
                             onChange={(e) => updateCustomVal(index, colIdx, e.target.value)} 
-                            className={`w-full p-2.5 border rounded-xl text-xs shadow-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-600 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} 
+                            className={`w-full p-2.5 border rounded-xl text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}`} 
                             placeholder="Notes..." 
                           />
                         </td>
