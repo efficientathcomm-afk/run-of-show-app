@@ -69,19 +69,20 @@ export default function App() {
   // Reusable Repository State
   const [segmentRepo, setSegmentRepo] = useState([]);
   const [repoSearch, setRepoSearch] = useState("");
-  const [editingRepoItem, setEditingRepoItem] = useState(null); // Modal state for editing repo item
+  const [editingRepoItem, setEditingRepoItem] = useState(null);
 
   // Drag and Drop State
   const [draggedIndex, setDraggedIndex] = useState(null);
 
   // Live Production Clocks State
   const [currentTimeStr, setCurrentTimeStr] = useState("");
+  const [nowTimestamp, setNowTimestamp] = useState(Date.now());
 
   // Teleprompter & Producer Mode State
   const [isPrompterPlaying, setIsPrompterPlaying] = useState(false);
   const [prompterSpeed, setPrompterSpeed] = useState(3);
   const [prompterFontSize, setPrompterFontSize] = useState(36); // px
-  const [activeProducerIndex, setActiveProducerIndex] = useState(0); // Producer Mode active cue
+  const [activeProducerIndex, setActiveProducerIndex] = useState(0);
   const prompterRef = useRef(null);
   const scrollTimerRef = useRef(null);
 
@@ -93,6 +94,7 @@ export default function App() {
     const timer = setInterval(() => {
       const now = new Date();
       setCurrentTimeStr(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setNowTimestamp(now.getTime());
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -313,13 +315,13 @@ export default function App() {
     }
   };
 
-  // Timing Calculation & Hard-coded Start Time Engine
+  // Timing Calculation Engine
   const calculateSchedule = () => {
     const parts = startTime.split(":");
     let currentSecs = (parseInt(parts[0]) || 0) * 3600 + (parseInt(parts[1]) || 0) * 60 + (parseInt(parts[2]) || 0);
 
     return rundown.map(item => {
-      if (item.type === "block") return { ...item, calculatedTime: "" };
+      if (item.type === "block") return { ...item, calculatedTime: "", rawSeconds: currentSecs };
 
       if (item.isLockedTime && item.lockedTimeStr) {
         const lockParts = item.lockedTimeStr.split(":");
@@ -328,6 +330,7 @@ export default function App() {
         }
       }
 
+      const rawSeconds = currentSecs;
       const d = new Date();
       d.setHours(0, 0, 0, 0);
       d.setSeconds(currentSecs);
@@ -336,7 +339,7 @@ export default function App() {
       const duration = (parseInt(item.min) || 0) * 60 + (parseInt(item.sec) || 0);
       currentSecs += duration;
 
-      return { ...item, calculatedTime: timeStr };
+      return { ...item, calculatedTime: timeStr, rawSeconds };
     });
   };
 
@@ -897,193 +900,247 @@ export default function App() {
       )}
 
       {/* VIEW 3: DEDICATED PRODUCER CONTROL VIEW */}
-      {currentView === "producer" && (
-        <main className="max-w-6xl mx-auto animate-fade-in">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-slate-900 text-white p-6 rounded-2xl shadow-xl">
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 bg-indigo-500/20 px-2.5 py-1 rounded-full border border-indigo-500/30">Live Producer Control Room</span>
-              <h2 className="text-2xl font-black mt-2">{showTitle}</h2>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Time of Day</div>
-                <div className="font-mono text-xl font-black text-amber-400">{currentTimeStr}</div>
-              </div>
-              <button 
-                onClick={() => setCurrentView("prompter")}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition shadow"
-              >
-                Launch Teleprompter 📺
-              </button>
-            </div>
-          </div>
+      {currentView === "producer" && (() => {
+        const activeItem = activeTimedRundown[activeProducerIndex];
+        const nextTimedItem = activeTimedRundown.slice(activeProducerIndex + 1).find(i => i.type !== "block");
+        
+        let diffSecs = 0;
+        let isOverdue = false;
+        if (nextTimedItem && nextTimedItem.rawSeconds) {
+          const currentEpochSecs = Math.floor(nowTimestamp / 1000);
+          const todayBase = new Date();
+          todayBase.setHours(0,0,0,0);
+          const todayBaseSecs = Math.floor(todayBase.getTime() / 1000);
+          const currentShowSecs = currentEpochSecs - todayBaseSecs;
+          
+          diffSecs = nextTimedItem.rawSeconds - currentShowSecs;
+          if (diffSecs < 0) isOverdue = true;
+        }
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Active Cue Spotlight Card */}
-            <div className="md:col-span-1 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between">
+        const absDiff = Math.abs(diffSecs);
+        const cdMins = Math.floor(absDiff / 60);
+        const cdSecs = absDiff % 60;
+        const countdownStr = `${isOverdue ? '-' : ''}${String(cdMins).padStart(2,'0')}:${String(cdSecs).padStart(2,'0')}`;
+
+        return (
+          <main className="max-w-6xl mx-auto animate-fade-in">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-slate-900 text-white p-6 rounded-2xl shadow-xl">
               <div>
-                <div className="text-xs uppercase font-bold text-slate-400 mb-2">Current Active Cue</div>
-                {activeTimedRundown[activeProducerIndex] ? (
-                  <div className="space-y-3">
-                    <div className="text-sm font-mono text-emerald-400 font-bold">[{activeTimedRundown[activeProducerIndex].calculatedTime || "BLOCK"}]</div>
-                    <h3 className="text-xl font-black text-white">{activeTimedRundown[activeProducerIndex].title || "Untitled"}</h3>
-                    {activeTimedRundown[activeProducerIndex].talent && (
-                      <p className="text-xs text-amber-400 font-semibold">🎙️ {activeTimedRundown[activeProducerIndex].talent}</p>
-                    )}
-                    <div 
-                      className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-40 overflow-y-auto"
-                      dangerouslySetInnerHTML={{ __html: activeTimedRundown[activeProducerIndex].script || activeTimedRundown[activeProducerIndex].type.toUpperCase() }}
-                    />
+                <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 bg-indigo-500/20 px-2.5 py-1 rounded-full border border-indigo-500/30">Live Producer Control Room</span>
+                <h2 className="text-2xl font-black mt-2">{showTitle}</h2>
+              </div>
+              <div className="flex items-center gap-6">
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Time of Day</div>
+                  <div className="font-mono text-xl font-black text-amber-400">{currentTimeStr}</div>
+                </div>
+                <div className="w-px h-8 bg-slate-800"></div>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Countdown to Next</div>
+                  <div className={`font-mono text-xl font-black ${isOverdue ? 'text-rose-500 animate-pulse' : 'text-emerald-400'}`}>
+                    {nextTimedItem ? countdownStr : "--:--"}
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-400">No cue selected.</p>
-                )}
-              </div>
-              <div className="flex gap-2 pt-6 border-t border-slate-800 mt-6">
-                <button 
-                  onClick={() => setActiveProducerIndex(Math.max(0, activeProducerIndex - 1))}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold transition"
-                >
-                  ◀ Previous Cue
-                </button>
-                <button 
-                  onClick={() => setActiveProducerIndex(Math.min(activeTimedRundown.length - 1, activeProducerIndex + 1))}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 py-3 rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30"
-                >
-                  Next Cue ▶
-                </button>
-              </div>
-            </div>
-
-            {/* Rundown Quick Jump List */}
-            <div className="md:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col">
-              <h3 className="font-black text-xs uppercase tracking-wider text-slate-400 mb-4">Rundown Sequence Tracker</h3>
-              <div className="flex-1 overflow-y-auto space-y-2 max-h-[500px] pr-2">
-                {activeTimedRundown.map((item, idx) => (
-                  <div 
-                    key={item.id || idx}
-                    onClick={() => setActiveProducerIndex(idx)}
-                    className={`p-3.5 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between ${activeProducerIndex === idx ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg' : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'}`}
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setCurrentView("prompter")}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition shadow"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-emerald-400 font-bold">{item.calculatedTime || "---"}</span>
-                      <div>
-                        <div className="font-bold">{item.title || "Untitled"}</div>
-                        <div className="text-[10px] text-slate-400">{item.talent ? `Talent: ${item.talent}` : item.type.toUpperCase()}</div>
-                      </div>
-                    </div>
-                    {activeProducerIndex === idx && (
-                      <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ACTIVE</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </main>
-      )}
-
-      {/* VIEW 4: FULLSCREEN TELEPROMPTER WITH COUNTDOWN TIMER */}
-      {currentView === "prompter" && (
-        <div className="fixed inset-0 bg-black z-50 flex flex-col text-white animate-fade-in w-screen h-screen">
-          {/* Sticky Teleprompter Control Room Header */}
-          <header className="bg-slate-900/95 border-b border-slate-800 px-6 py-3 flex flex-wrap items-center justify-between gap-4 z-50 backdrop-blur shadow-xl w-full">
-            <div className="flex items-center gap-4">
-              <span className="text-xs px-3 py-1 rounded-full bg-emerald-600 font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-                LIVE TELEPROMPTER
-              </span>
-              <div className="hidden md:flex items-center gap-4 text-xs font-mono bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-                <span>TIME: <strong className="text-amber-400">{currentTimeStr}</strong></span>
-                <span>SEGMENT TIMER: <strong className="text-sky-400">03:45</strong></span>
+                    Prompter 📺
+                  </button>
+                  <button 
+                    onClick={() => setCurrentView("editor")}
+                    className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition shadow"
+                  >
+                    Exit ✕
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <button 
-                onClick={() => setIsPrompterPlaying(!isPrompterPlaying)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow ${isPrompterPlaying ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-              >
-                {isPrompterPlaying ? "⏸ Pause Auto-Scroll" : "▶ Play Auto-Scroll"}
-              </button>
-
-              <label className="text-xs flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-                Speed:
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="10" 
-                  value={prompterSpeed} 
-                  onChange={(e) => setPrompterSpeed(parseInt(e.target.value))}
-                  className="cursor-pointer accent-blue-500 w-20"
-                />
-              </label>
-
-              <div className="flex items-center gap-1 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
-                <span>Text Size:</span>
-                <button onClick={() => setPrompterFontSize(Math.max(24, prompterFontSize - 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A-</button>
-                <span className="font-mono w-6 text-center">{prompterFontSize}</span>
-                <button onClick={() => setPrompterFontSize(Math.min(72, prompterFontSize + 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A+</button>
-              </div>
-
-              <button 
-                onClick={() => setCurrentView("editor")}
-                className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow"
-              >
-                Exit Prompter
-              </button>
-            </div>
-          </header>
-
-          {/* Prompter Body Feed */}
-          <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-16 leading-relaxed w-full" style={{ fontSize: `${prompterFontSize}px` }}>
-            <div className="max-w-5xl mx-auto w-full">
-              <h1 className="text-3xl md:text-5xl font-black text-sky-400 mb-12 pb-6 border-b border-slate-800 tracking-tight">{showTitle}</h1>
-              {activeTimedRundown.map((item, idx) => {
-                if (item.type === "block") {
-                  return (
-                    <div 
-                      key={item.id || idx} 
-                      style={{ backgroundColor: item.color }} 
-                      className="p-6 my-10 font-bold uppercase rounded-2xl shadow-2xl text-white tracking-wide"
-                    >
-                      {item.title || "SECTION"}
-                    </div>
-                  );
-                }
-                if (item.type === "cue") {
-                  return (
-                    <div 
-                      key={item.id || idx} 
-                      style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff" }} 
-                      className="p-5 my-8 font-bold rounded-2xl shadow-xl"
-                    >
-                      [CUE {item.calculatedTime}] {item.title || 'Cue'} {item.talent ? `| Target: ${item.talent}` : ''}
-                    </div>
-                  );
-                }
-                if (item.type === "segment" && item.script && item.script.replace(/<[^>]*>/g, '').trim() !== "") {
-                  return (
-                    <div key={item.id || idx} className="mb-20 pb-10 border-b border-slate-800">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sky-400 font-mono font-bold text-lg md:text-xl">[{item.calculatedTime}] {item.title || 'Segment'}</span>
-                        <span className="text-xs font-mono text-slate-400">Dur: {item.min}m {item.sec}s</span>
-                      </div>
-                      {item.talent && <div className="text-amber-400 font-semibold mb-4 text-base md:text-lg">🎙️ {item.talent}</div>}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Active Cue Spotlight Card */}
+              <div className="md:col-span-1 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between">
+                <div>
+                  <div className="text-xs uppercase font-bold text-slate-400 mb-2">Current Active Cue</div>
+                  {activeItem ? (
+                    <div className="space-y-3">
+                      <div className="text-sm font-mono text-emerald-400 font-bold">[{activeItem.calculatedTime || "BLOCK"}]</div>
+                      <h3 className="text-xl font-black text-white">{activeItem.title || "Untitled"}</h3>
+                      {activeItem.talent && (
+                        <p className="text-xs text-amber-400 font-semibold">🎙️ {activeItem.talent}</p>
+                      )}
                       <div 
-                        className="prose prose-invert max-w-none text-slate-100 font-medium"
-                        style={{ textTransform: item.isUpper ? 'uppercase' : 'none', fontSize: `${prompterFontSize}px`, lineHeight: '1.6' }}
-                        dangerouslySetInnerHTML={{ __html: item.script }} 
+                        className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-40 overflow-y-auto"
+                        dangerouslySetInnerHTML={{ __html: activeItem.script || activeItem.type.toUpperCase() }}
                       />
                     </div>
-                  );
-                }
-                return null;
-              })}
+                  ) : (
+                    <p className="text-xs text-slate-400">No cue selected.</p>
+                  )}
+                </div>
+                <div className="flex gap-2 pt-6 border-t border-slate-800 mt-6">
+                  <button 
+                    onClick={() => setActiveProducerIndex(Math.max(0, activeProducerIndex - 1))}
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold transition"
+                  >
+                    ◀ Previous Cue
+                  </button>
+                  <button 
+                    onClick={() => setActiveProducerIndex(Math.min(activeTimedRundown.length - 1, activeProducerIndex + 1))}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 py-3 rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30"
+                  >
+                    Next Cue ▶
+                  </button>
+                </div>
+              </div>
+
+              {/* Rundown Quick Jump List */}
+              <div className="md:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col">
+                <h3 className="font-black text-xs uppercase tracking-wider text-slate-400 mb-4">Rundown Sequence Tracker</h3>
+                <div className="flex-1 overflow-y-auto space-y-2 max-h-[500px] pr-2">
+                  {activeTimedRundown.map((item, idx) => (
+                    <div 
+                      key={item.id || idx}
+                      onClick={() => setActiveProducerIndex(idx)}
+                      className={`p-3.5 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between ${activeProducerIndex === idx ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg' : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-emerald-400 font-bold">{item.calculatedTime || "---"}</span>
+                        <div>
+                          <div className="font-bold">{item.title || "Untitled"}</div>
+                          <div className="text-[10px] text-slate-400">{item.talent ? `Talent: ${item.talent}` : item.type.toUpperCase()}</div>
+                        </div>
+                      </div>
+                      {activeProducerIndex === idx && (
+                        <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ACTIVE</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </main>
+        );
+      })()}
+
+      {/* VIEW 4: FULLSCREEN TELEPROMPTER WITH COUNTDOWN TIMER */}
+      {currentView === "prompter" && (() => {
+        const nextTimedItem = activeTimedRundown.slice(activeProducerIndex + 1).find(i => i.type !== "block");
+        let diffSecs = 0;
+        let isOverdue = false;
+        if (nextTimedItem && nextTimedItem.rawSeconds) {
+          const currentEpochSecs = Math.floor(nowTimestamp / 1000);
+          const todayBase = new Date();
+          todayBase.setHours(0,0,0,0);
+          const currentShowSecs = currentEpochSecs - Math.floor(todayBase.getTime() / 1000);
+          diffSecs = nextTimedItem.rawSeconds - currentShowSecs;
+          if (diffSecs < 0) isOverdue = true;
+        }
+        const absDiff = Math.abs(diffSecs);
+        const countdownStr = `${isOverdue ? '-' : ''}${String(Math.floor(absDiff/60)).padStart(2,'0')}:${String(absDiff%60).padStart(2,'0')}`;
+
+        return (
+          <div className="fixed inset-0 bg-black z-50 flex flex-col text-white animate-fade-in w-screen h-screen">
+            {/* Sticky Teleprompter Control Room Header */}
+            <header className="bg-slate-900/95 border-b border-slate-800 px-6 py-3 flex flex-wrap items-center justify-between gap-4 z-50 backdrop-blur shadow-xl w-full">
+              <div className="flex items-center gap-4">
+                <span className="text-xs px-3 py-1 rounded-full bg-emerald-600 font-bold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                  LIVE TELEPROMPTER
+                </span>
+                <div className="hidden md:flex items-center gap-4 text-xs font-mono bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                  <span>TIME: <strong className="text-amber-400">{currentTimeStr}</strong></span>
+                  <span>COUNTDOWN: <strong className={isOverdue ? 'text-rose-500 animate-pulse' : 'text-emerald-400'}>{nextTimedItem ? countdownStr : "--:--"}</strong></span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button 
+                  onClick={() => setIsPrompterPlaying(!isPrompterPlaying)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition shadow ${isPrompterPlaying ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                >
+                  {isPrompterPlaying ? "⏸ Pause Auto-Scroll" : "▶ Play Auto-Scroll"}
+                </button>
+
+                <label className="text-xs flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                  Speed:
+                  <input 
+                    type="range" 
+                    min="1" 
+                    max="10" 
+                    value={prompterSpeed} 
+                    onChange={(e) => setPrompterSpeed(parseInt(e.target.value))}
+                    className="cursor-pointer accent-blue-500 w-20"
+                  />
+                </label>
+
+                <div className="flex items-center gap-1 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
+                  <span>Text Size:</span>
+                  <button onClick={() => setPrompterFontSize(Math.max(24, prompterFontSize - 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A-</button>
+                  <span className="font-mono w-6 text-center">{prompterFontSize}</span>
+                  <button onClick={() => setPrompterFontSize(Math.min(72, prompterFontSize + 4))} className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold">A+</button>
+                </div>
+
+                <button 
+                  onClick={() => setCurrentView("editor")}
+                  className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition shadow"
+                >
+                  Exit Prompter
+                </button>
+              </div>
+            </header>
+
+            {/* Prompter Body Feed */}
+            <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-16 leading-relaxed w-full" style={{ fontSize: `${prompterFontSize}px` }}>
+              <div className="max-w-5xl mx-auto w-full">
+                <h1 className="text-3xl md:text-5xl font-black text-sky-400 mb-12 pb-6 border-b border-slate-800 tracking-tight">{showTitle}</h1>
+                {activeTimedRundown.map((item, idx) => {
+                  if (item.type === "block") {
+                    return (
+                      <div 
+                        key={item.id || idx} 
+                        style={{ backgroundColor: item.color }} 
+                        className="p-6 my-10 font-bold uppercase rounded-2xl shadow-2xl text-white tracking-wide"
+                      >
+                        {item.title || "SECTION"}
+                      </div>
+                    );
+                  }
+                  if (item.type === "cue") {
+                    return (
+                      <div 
+                        key={item.id || idx} 
+                        style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff" }} 
+                        className="p-5 my-8 font-bold rounded-2xl shadow-xl"
+                      >
+                        [CUE {item.calculatedTime}] {item.title || 'Cue'} {item.talent ? `| Target: ${item.talent}` : ''}
+                      </div>
+                    );
+                  }
+                  if (item.type === "segment" && item.script && item.script.replace(/<[^>]*>/g, '').trim() !== "") {
+                    return (
+                      <div key={item.id || idx} className="mb-20 pb-10 border-b border-slate-800">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sky-400 font-mono font-bold text-lg md:text-xl">[{item.calculatedTime}] {item.title || 'Segment'}</span>
+                          <span className="text-xs font-mono text-slate-400">Dur: {item.min}m {item.sec}s</span>
+                        </div>
+                        {item.talent && <div className="text-amber-400 font-semibold mb-4 text-base md:text-lg">🎙️ {item.talent}</div>}
+                        <div 
+                          className="prose prose-invert max-w-none text-slate-100 font-medium"
+                          style={{ textTransform: item.isUpper ? 'uppercase' : 'none', fontSize: `${prompterFontSize}px`, lineHeight: '1.6' }}
+                          dangerouslySetInnerHTML={{ __html: item.script }} 
+                        />
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* VIEW 5: MODERN ACTIVE SHOW EDITOR */}
       {currentView === "editor" && (
