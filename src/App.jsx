@@ -1,4 +1,4 @@
-<selection-tag>import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -14,7 +14,7 @@ const firebaseConfig = {
   measurementId: "G-JXKR1JSF24"
 };
 
-// 1. Initialize Firebase Services using your explicit project configuration
+// Initialize Firebase Services safely with fallback for preview environment
 let app = null;
 let auth = null;
 let db = null;
@@ -1067,4 +1067,4 @@ export default function App() {
 
     </div>
   );
-}</selection-tag>
+}
