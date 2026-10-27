@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+<selection-tag>import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -14,7 +14,7 @@ const firebaseConfig = {
   measurementId: "G-JXKR1JSF24"
 };
 
-// 1. Initialize Firebase Services using your configuration with fallback
+// 1. Initialize Firebase Services using your explicit project configuration
 let app = null;
 let auth = null;
 let db = null;
@@ -32,7 +32,7 @@ export default function App() {
   // Authentication & User State
   const [user, setUser] = useState(null);
   const [authInitialized, setAuthInitialized] = useState(false);
-  const [isCloudConnected, setIsCloudConnected] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState("Connecting to Firebase...");
 
   // App Navigation / Mode State ("list" | "editor" | "teleprompter" | "repository")
   const [currentView, setCurrentView] = useState("list");
@@ -51,7 +51,6 @@ export default function App() {
   // Teleprompter States
   const [isPrompterPlaying, setIsPrompterPlaying] = useState(false);
   const [prompterSpeed, setPrompterSpeed] = useState(3);
-  const [cloudSyncStatus, setCloudSyncStatus] = useState("Local Storage Mode (Ready for Firebase)");
 
   const prompterRef = useRef(null);
   const scrollTimerRef = useRef(null);
@@ -60,6 +59,7 @@ export default function App() {
   useEffect(() => {
     if (!auth || !db) {
       setAuthInitialized(true);
+      setCloudSyncStatus("💾 Local Storage Mode (Firebase not initialized)");
       loadLocalShowsFallback();
       return;
     }
@@ -73,22 +73,27 @@ export default function App() {
         }
       } catch (err) {
         console.error("Auth initialization error:", err);
+        setCloudSyncStatus("⚠️ Auth Error - Local Mode");
       } finally {
         setAuthInitialized(true);
       }
     };
     initAuth();
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      if (u) setIsCloudConnected(true);
+      if (u) {
+        setCloudSyncStatus("🟢 Cloud Sync Active");
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  // ==================== DATA SYNC (FIREBASE OR LOCALSTORAGE) ====================
+  // ==================== DATA SYNC (FIREBASE FIRESTORE) ====================
   useEffect(() => {
     if (!user || !db) return;
 
+    // Listen to Segment Library
     const repoRef = doc(db, 'artifacts', appId, 'public', 'data', 'segment_library');
     const unsubRepo = onSnapshot(repoRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -96,6 +101,7 @@ export default function App() {
       }
     }, (err) => console.error("Error loading segment library:", err));
 
+    // Listen to Shows Index
     const showsIndexRef = doc(db, 'artifacts', appId, 'public', 'data', 'shows_index');
     const unsubIndex = onSnapshot(showsIndexRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -103,6 +109,8 @@ export default function App() {
         setShowsList(list);
         if (list.length === 0 && currentView === "list") {
           createDefaultShow();
+        } else if (list.length > 0 && !activeShowId) {
+          setActiveShowId(list[0].id);
         }
       } else {
         createDefaultShow();
@@ -110,7 +118,7 @@ export default function App() {
       setCloudSyncStatus("🟢 Cloud Sync Active");
     }, (err) => {
       console.error("Error loading shows list:", err);
-      setCloudSyncStatus("🔴 Sync Error");
+      setCloudSyncStatus("🔴 Sync Error (Check Firestore Rules)");
     });
 
     return () => {
@@ -119,6 +127,7 @@ export default function App() {
     };
   }, [user]);
 
+  // Listen to Active Show Document
   useEffect(() => {
     if (!user || !activeShowId || !db) return;
 
@@ -160,7 +169,6 @@ export default function App() {
     } catch (e) {
       createDefaultShowLocal();
     }
-    setCloudSyncStatus("💾 Local Storage Mode");
   };
 
   const loadLocalShowDetails = (id) => {
@@ -256,11 +264,6 @@ export default function App() {
     setStartTime(initialShow.startTime);
     setCustomColumns(initialShow.customColumns);
     setRundown(initialShow.rundown);
-
-    try {
-      localStorage.setItem(`ros_show_${defaultId}`, JSON.stringify(initialShow));
-      localStorage.setItem("ros_shows_list", JSON.stringify([{ id: defaultId, title: initialShow.showTitle, updatedAt: new Date().toISOString() }]));
-    } catch (e) {}
   };
 
   const createDefaultShow = async () => {
@@ -303,6 +306,7 @@ export default function App() {
         });
         setActiveShowId(defaultId);
       } catch (e) {
+        console.error("Error creating default show:", e);
         createDefaultShowLocal();
       }
     } else {
@@ -342,10 +346,6 @@ export default function App() {
       setCustomColumns(["Audio / Cues", "Video / Slides"]);
       setRundown(newShow.rundown);
       setCurrentView("editor");
-      try {
-        localStorage.setItem(`ros_show_${newId}`, JSON.stringify(newShow));
-        localStorage.setItem("ros_shows_list", JSON.stringify(updatedList));
-      } catch (e) {}
     }
   };
 
@@ -362,10 +362,6 @@ export default function App() {
       });
     } else {
       setShowsList(updatedList);
-      try {
-        localStorage.setItem("ros_shows_list", JSON.stringify(updatedList));
-        localStorage.removeItem(`ros_show_${id}`);
-      } catch (e) {}
       if (activeShowId === id) {
         setActiveShowId(updatedList.length > 0 ? updatedList[0].id : null);
       }
@@ -399,9 +395,6 @@ export default function App() {
       setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'segment_library'), { items: updatedLib })
         .then(() => alert("Segment saved to your reusable repository library!"));
     } else {
-      try {
-        localStorage.setItem("ros_segment_lib", JSON.stringify(updatedLib));
-      } catch (e) {}
       alert("Segment saved to your reusable repository library!");
     }
   };
@@ -428,10 +421,6 @@ export default function App() {
     setSegmentLibrary(updatedLib);
     if (user && db) {
       setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'segment_library'), { items: updatedLib });
-    } else {
-      try {
-        localStorage.setItem("ros_segment_lib", JSON.stringify(updatedLib));
-      } catch (e) {}
     }
   };
 
@@ -585,7 +574,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center font-sans">
         <div className="text-center animate-pulse">
           <h2 className="text-xl font-bold">Connecting Run of Show Cloud...</h2>
-          <p className="text-sm text-slate-400 mt-2">Initializing session</p>
+          <p className="text-sm text-slate-400 mt-2">Authenticating with Firebase</p>
         </div>
       </div>
     );
@@ -600,7 +589,7 @@ export default function App() {
           <span className="text-2xl">🎬</span>
           <div>
             <h1 className="text-xl font-extrabold tracking-tight">Run of Show Cloud Studio</h1>
-            <p className="text-xs text-emerald-400 font-semibold">{cloudSyncStatus} • Multi-Device Live Sync</p>
+            <p className="text-xs text-emerald-400 font-semibold">{cloudSyncStatus}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -641,7 +630,7 @@ export default function App() {
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-2xl font-bold">Your Saved Shows</h2>
-              <p className="text-sm text-slate-500">Create and manage multiple production rundowns saved instantly.</p>
+              <p className="text-sm text-slate-500">Create and manage multiple production rundowns saved instantly in the cloud.</p>
             </div>
             <button 
               onClick={handleCreateNewShow}
@@ -691,7 +680,7 @@ export default function App() {
         <div className="max-w-5xl mx-auto">
           <div className="mb-6">
             <h2 className="text-2xl font-bold">Reusable Segment Repository</h2>
-            <p className="text-sm text-slate-500">Save frequently used segments or cues from any show here and quickly inject them into new rundowns.</p>
+            <p className="text-sm text-slate-500">Save frequently used segments or cues from any show here and quickly inject them into new rundowns across your devices.</p>
           </div>
 
           {segmentLibrary.length === 0 ? (
@@ -736,7 +725,7 @@ export default function App() {
       {currentView === "teleprompter" && (
         <div className="fixed inset-0 bg-black z-50 p-6 flex flex-col text-white">
           <div className="absolute top-4 right-6 bg-slate-900/95 border border-slate-700 p-3 rounded-lg flex items-center gap-4 shadow-2xl z-50">
-            <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-600 font-bold">🟢 Live Teleprompter</span>
+            <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-600 font-bold">🟢 Live Cloud Teleprompter</span>
             <button 
               onClick={() => setIsPrompterPlaying(!isPrompterPlaying)}
               className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded text-sm font-bold shadow"
@@ -1078,4 +1067,4 @@ export default function App() {
 
     </div>
   );
-}
+}</selection-tag>
