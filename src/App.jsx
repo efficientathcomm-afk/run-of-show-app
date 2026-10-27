@@ -1128,9 +1128,9 @@ export default function App() {
             </header>
 
             {/* Prompter Body Feed */}
-            <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-16 leading-relaxed w-full" style={{ fontSize: `${prompterFontSize}px` }}>
+            <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-16 leading-relaxed w-full">
               <div className="max-w-5xl mx-auto w-full">
-                <h1 className="text-3xl md:text-5xl font-black text-sky-400 mb-12 pb-6 border-b border-slate-800 tracking-tight">{showTitle}</h1>
+                <h1 className="text-3xl md:text-5xl font-black text-sky-400 mb-12 pb-6 border-b border-slate-800 tracking-tight" style={{ fontSize: `${prompterFontSize * 1.2}px` }}>{showTitle}</h1>
                 {activeTimedRundown.map((item, idx) => {
                   const isActive = activeProducerIndex === idx;
                   if (item.type === "block") {
@@ -1138,7 +1138,7 @@ export default function App() {
                       <div 
                         key={item.id || idx}
                         ref={el => { prompterItemRefs.current[idx] = el; }}
-                        style={{ backgroundColor: item.color }} 
+                        style={{ backgroundColor: item.color, fontSize: `${prompterFontSize * 1.1}px` }} 
                         className={`p-6 my-10 font-bold uppercase rounded-2xl shadow-2xl text-white tracking-wide transition-all ${isActive ? 'ring-4 ring-amber-400 scale-[1.02]' : ''}`}
                       >
                         {item.title || "SECTION"}
@@ -1150,7 +1150,7 @@ export default function App() {
                       <div 
                         key={item.id || idx}
                         ref={el => { prompterItemRefs.current[idx] = el; }}
-                        style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff" }} 
+                        style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff", fontSize: `${prompterFontSize}px` }} 
                         className={`p-5 my-8 font-bold rounded-2xl shadow-xl transition-all ${isActive ? 'ring-4 ring-amber-400 scale-[1.02]' : ''}`}
                       >
                         [CUE {item.calculatedTime}] {item.title || 'Cue'} {item.talent ? `| Target: ${item.talent}` : ''}
@@ -1165,12 +1165,12 @@ export default function App() {
                         className={`mb-20 pb-10 border-b border-slate-800 transition-all p-4 rounded-2xl ${isActive ? 'bg-slate-900/80 border-amber-400/50 ring-2 ring-amber-400/40' : ''}`}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className={`font-mono font-bold text-lg md:text-xl ${isActive ? 'text-amber-400' : 'text-sky-400'}`}>
+                          <span className={`font-mono font-bold text-lg md:text-xl ${isActive ? 'text-amber-400' : 'text-sky-400'}`} style={{ fontSize: `${prompterFontSize * 1.1}px` }}>
                             {isActive ? '▶ ' : ''}[{item.calculatedTime}] {item.title || 'Segment'}
                           </span>
                           <span className="text-xs font-mono text-slate-400">Dur: {item.min}m {item.sec}s</span>
                         </div>
-                        {item.talent && <div className="text-amber-400 font-semibold mb-4 text-base md:text-lg">🎙️ {item.talent}</div>}
+                        {item.talent && <div className="text-amber-400 font-semibold mb-4 text-base md:text-lg" style={{ fontSize: `${prompterFontSize * 0.9}px` }}>🎙️ {item.talent}</div>}
                         <div 
                           className="prose prose-invert max-w-none text-slate-100 font-medium"
                           style={{ textTransform: item.isUpper ? 'uppercase' : 'none', fontSize: `${prompterFontSize}px`, lineHeight: '1.6' }}
