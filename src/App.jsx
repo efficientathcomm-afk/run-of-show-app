@@ -241,8 +241,8 @@ export default function App() {
       customColumns: ["Audio / Cues", "Video / Slides", "Stage Notes"],
       rundown: [
         { id: "b1", type: "block", title: "ACT I: OPENING & WELCOME", color: "#3b82f6" },
-        { id: "s1", type: "segment", min: 3, sec: 0, title: "Opening Remarks", talent: "Executive Producer", script: "Welcome esteemed guests to our keynote presentation!", customValues: ["Roll opening intro music", "Main presentation deck active", "Stage lights up full"], isLockedTime: false, lockedTimeStr: "" },
-        { id: "c1", type: "cue", min: 0, sec: 15, title: "Roll Hype Video", talent: "AV Control", color: "#f59e0b", customValues: ["Video file: opening_reel.mp4", "Audio preset 2", "Projector main up"], isLockedTime: false, lockedTimeStr: "" }
+        { id: "s1", type: "segment", min: 1, sec: 0, title: "Opening Remarks", talent: "Executive Producer", script: "", customValues: ["", "", ""], isLockedTime: false, lockedTimeStr: "" },
+        { id: "c1", type: "cue", min: 0, sec: 15, title: "Roll Hype Video", talent: "AV Control", color: "#f59e0b", customValues: ["", "", ""], isLockedTime: false, lockedTimeStr: "" }
       ]
     };
     setActiveShowId(newId);
@@ -306,7 +306,7 @@ export default function App() {
       customColumns: ["Audio / Cues", "Video / Slides", "Stage Notes"],
       rundown: [
         { id: "b1", type: "block", title: "MAIN SHOW BLOCK", color: "#3b82f6" },
-        { id: "s1", type: "segment", min: 2, sec: 0, title: "Introduction", talent: "Host", script: "Opening monologue...", customValues: ["", "", ""], isLockedTime: false, lockedTimeStr: "" }
+        { id: "s1", type: "segment", min: 1, sec: 0, title: "Introduction", talent: "Host", script: "", customValues: ["", "", ""], isLockedTime: false, lockedTimeStr: "" }
       ]
     };
 
@@ -338,7 +338,7 @@ export default function App() {
     }
   };
 
-  // Timing Calculation Engine
+  // Timing Calculation Engine with Hard-Start support
   const calculateSchedule = () => {
     const parts = startTime.split(":");
     let currentSecs = (parseInt(parts[0]) || 0) * 3600 + (parseInt(parts[1]) || 0) * 60 + (parseInt(parts[2]) || 0);
@@ -381,11 +381,11 @@ export default function App() {
     const item = {
       id: "seg_" + Date.now(),
       type: "segment",
-      min: 3,
+      min: 1,
       sec: 0,
-      title: "New Segment",
-      talent: "Presenter",
-      script: "Enter script remarks and cue notes here...",
+      title: "",
+      talent: "",
+      script: "",
       customValues: new Array(customColumns.length).fill(""),
       isUpper: false,
       isLockedTime: false,
@@ -402,8 +402,8 @@ export default function App() {
       type: "cue",
       min: 0,
       sec: 15,
-      title: "System Cue / Trigger",
-      talent: "AV Control",
+      title: "",
+      talent: "",
       color: "#f59e0b",
       customValues: new Array(customColumns.length).fill(""),
       isLockedTime: false,
@@ -1009,7 +1009,7 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Active Cue Spotlight Card */}
+              {/* Active Cue Spotlight Card with All Column Notes */}
               <div className="md:col-span-1 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between">
                 <div>
                   <div className="text-xs uppercase font-bold text-slate-400 mb-2">Current Active Cue</div>
@@ -1020,10 +1020,29 @@ export default function App() {
                       {activeItem.talent && (
                         <p className="text-xs text-amber-400 font-semibold">🎙️ {activeItem.talent}</p>
                       )}
+                      
+                      {/* Script / Notes */}
                       <div 
-                        className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-40 overflow-y-auto"
+                        className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-32 overflow-y-auto"
                         dangerouslySetInnerHTML={{ __html: activeItem.script || activeItem.type.toUpperCase() }}
                       />
+
+                      {/* Display All Custom Columns on Producer View */}
+                      {customColumns.length > 0 && activeItem.customValues && (
+                        <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Production Column Notes:</div>
+                          {customColumns.map((colName, cIdx) => {
+                            const val = activeItem.customValues[cIdx];
+                            if (!val) return null;
+                            return (
+                              <div key={cIdx} className="text-xs bg-slate-950/60 p-2 rounded-lg border border-slate-800 flex justify-between gap-2">
+                                <span className="font-bold text-indigo-400">{colName}:</span>
+                                <span className="text-slate-300 text-right">{val}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <p className="text-xs text-slate-400">No cue selected.</p>
@@ -1032,41 +1051,48 @@ export default function App() {
                 <div className="flex gap-2 pt-6 border-t border-slate-800 mt-6">
                   <button 
                     onClick={() => setActiveProducerIndex(Math.max(0, activeProducerIndex - 1))}
-                    className="flex-1 bg-indigo-800 hover:bg-indigo-700 py-3 rounded-xl text-xs font-bold transition"
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold transition"
                   >
                     ◀ Previous Cue
                   </button>
                   <button 
                     onClick={() => setActiveProducerIndex(Math.min(activeTimedRundown.length - 1, activeProducerIndex + 1))}
-                    className="flex-1 bg-violet-600 hover:bg-violet-700 py-3 rounded-xl text-xs font-bold transition shadow-lg shadow-violet-600/30"
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 py-3 rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30"
                   >
                     Next Cue ▶
                   </button>
                 </div>
               </div>
 
-              {/* Rundown Quick Jump List */}
+              {/* Rundown Quick Jump List with Color-Coded Blocks and Cues */}
               <div className="md:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl flex flex-col">
                 <h3 className="font-black text-xs uppercase tracking-wider text-slate-400 mb-4">Rundown Sequence Tracker</h3>
                 <div className="flex-1 overflow-y-auto space-y-2 max-h-[500px] pr-2">
-                  {activeTimedRundown.map((item, idx) => (
-                    <div 
-                      key={item.id || idx}
-                      onClick={() => setActiveProducerIndex(idx)}
-                      className={`p-3.5 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between ${activeProducerIndex === idx ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg' : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-emerald-400 font-bold">{item.calculatedTime || "---"}</span>
-                        <div>
-                          <div className="font-bold">{item.title || "Untitled"}</div>
-                          <div className="text-[10px] text-slate-400">{item.talent ? `Talent: ${item.talent}` : item.type.toUpperCase()}</div>
+                  {activeTimedRundown.map((item, idx) => {
+                    const isBlock = item.type === "block";
+                    const isCue = item.type === "cue";
+                    const rowStyle = isBlock || isCue ? { backgroundColor: item.color || (isBlock ? '#3b82f6' : '#f59e0b') } : {};
+
+                    return (
+                      <div 
+                        key={item.id || idx}
+                        onClick={() => setActiveProducerIndex(idx)}
+                        style={rowStyle}
+                        className={`p-3.5 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between ${isBlock || isCue ? 'text-white font-bold' : ''} ${activeProducerIndex === idx ? 'ring-4 ring-indigo-400 shadow-xl' : isBlock || isCue ? 'border-white/20' : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`font-mono font-bold ${isBlock || isCue ? 'text-white' : 'text-emerald-400'}`}>{item.calculatedTime || "---"}</span>
+                          <div>
+                            <div className="font-bold">{item.title || (isBlock ? "SECTION BLOCK" : "Untitled")}</div>
+                            <div className={`text-[10px] ${isBlock || isCue ? 'text-white/80' : 'text-slate-400'}`}>{item.talent ? `Talent: ${item.talent}` : item.type.toUpperCase()}</div>
+                          </div>
                         </div>
+                        {activeProducerIndex === idx && (
+                          <span className="bg-white text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full shadow">ACTIVE</span>
+                        )}
                       </div>
-                      {activeProducerIndex === idx && (
-                        <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ACTIVE</span>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1255,7 +1281,7 @@ export default function App() {
               <thead>
                 <tr className="bg-slate-900 text-white text-left text-[11px] uppercase tracking-wider">
                   <th className="p-3.5 w-[50px] text-center">⋮⋮</th>
-                  <th className="p-3.5 w-[110px]">Time</th>
+                  <th className="p-3.5 w-[140px]">Time</th>
                   <th className="p-3.5 w-[130px]">Duration</th>
                   <th className="p-3.5 w-[180px]">Segment / Title</th>
                   <th className="p-3.5 w-[140px]">Talent</th>
@@ -1459,7 +1485,23 @@ export default function App() {
                       <td className={`p-3.5 text-center font-bold ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>⋮⋮</td>
                       <td className="p-3.5">
                         <div className="flex flex-col gap-1.5">
-                          <span className={`font-mono font-bold text-xs ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{item.calculatedTime}</span>
+                          {item.isLockedTime ? (
+                            <div className="flex items-center gap-1">
+                              <input 
+                                type="text"
+                                value={item.lockedTimeStr || item.calculatedTime}
+                                onChange={(e) => {
+                                  const updated = [...rundown];
+                                  updated[index].lockedTimeStr = e.target.value;
+                                  setRundown(updated);
+                                  persistShow(showTitle, startTime, customColumns, updated);
+                                }}
+                                className={`font-mono font-bold text-xs p-1 rounded-lg border w-24 ${isDark ? 'bg-slate-800 border-slate-700 text-amber-400' : 'bg-white border-slate-300 text-amber-600'}`}
+                              />
+                            </div>
+                          ) : (
+                            <span className={`font-mono font-bold text-xs ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{item.calculatedTime}</span>
+                          )}
                           <button 
                             onClick={() => {
                               const newLock = !item.isLockedTime;
