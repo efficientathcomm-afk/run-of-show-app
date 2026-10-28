@@ -1,4 +1,4 @@
-<selection-tag>import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -1581,6 +1581,5 @@ export default function App() {
         </main>
       )}
     </div>
-   );
+  );
 }
-  );</selection-tag>
