@@ -17,7 +17,7 @@ const firebaseConfig = {
 let app = null;
 let auth = null;
 let db = null;
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'run-of-show-studio-v5';
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'run-of-show-studio-v6';
 
 try {
   app = initializeApp(firebaseConfig);
@@ -25,6 +25,20 @@ try {
   db = getFirestore(app);
 } catch (e) {
   console.warn("Offline fallback mode active:", e);
+}
+
+// Utility to completely strip conflicting inline font sizes/styles from pasted text for the teleprompter
+function sanitizeScriptHtml(html) {
+  if (!html) return "";
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const allElements = div.querySelectorAll('*');
+  allElements.forEach(el => {
+    el.removeAttribute('style');
+    el.removeAttribute('face');
+    el.removeAttribute('size');
+  });
+  return div.innerHTML;
 }
 
 // Auto-resizing textarea component for all table fields
@@ -185,8 +199,8 @@ export default function App() {
 
   const loadLocalFallback = () => {
     try {
-      const savedList = localStorage.getItem("ros_shows_v5");
-      const savedRepo = localStorage.getItem("ros_repo_v5");
+      const savedList = localStorage.getItem("ros_shows_v6");
+      const savedRepo = localStorage.getItem("ros_repo_v6");
       if (savedRepo) setSegmentRepo(JSON.parse(savedRepo));
       if (savedList) {
         const parsed = JSON.parse(savedList);
@@ -207,7 +221,7 @@ export default function App() {
 
   const loadLocalShow = (id) => {
     try {
-      const showData = localStorage.getItem(`ros_show_v5_${id}`);
+      const showData = localStorage.getItem(`ros_show_v6_${id}`);
       if (showData) {
         const parsed = JSON.parse(showData);
         setShowTitle(parsed.showTitle);
@@ -273,10 +287,10 @@ export default function App() {
       }
     } else {
       try {
-        localStorage.setItem(`ros_show_v5_${activeShowId}`, JSON.stringify(showPayload));
+        localStorage.setItem(`ros_show_v6_${activeShowId}`, JSON.stringify(showPayload));
         const updatedList = showsList.map(s => s.id === activeShowId ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s);
         setShowsList(updatedList);
-        localStorage.setItem("ros_shows_v5", JSON.stringify(updatedList));
+        localStorage.setItem("ros_shows_v6", JSON.stringify(updatedList));
       } catch (e) {}
     }
   };
@@ -320,7 +334,7 @@ export default function App() {
     } else {
       setShowsList(updated);
       if (activeShowId === id && updated.length > 0) setActiveShowId(updated[0].id);
-      localStorage.setItem("ros_shows_v5", JSON.stringify(updated));
+      localStorage.setItem("ros_shows_v6", JSON.stringify(updated));
     }
   };
 
@@ -528,7 +542,7 @@ export default function App() {
         .then(() => alert("Saved & linked to Reusable Repository!"))
         .catch(err => alert("Permission denied."));
     } else {
-      localStorage.setItem("ros_repo_v5", JSON.stringify(updatedRepo));
+      localStorage.setItem("ros_repo_v6", JSON.stringify(updatedRepo));
       alert("Saved & linked to Reusable Repository!");
     }
   };
@@ -584,7 +598,7 @@ export default function App() {
         console.error("Repo update error:", e);
       }
     } else {
-      localStorage.setItem("ros_repo_v5", JSON.stringify(updatedRepo));
+      localStorage.setItem("ros_repo_v6", JSON.stringify(updatedRepo));
       alert("Master segment updated successfully!");
     }
   };
@@ -605,7 +619,7 @@ export default function App() {
 
   // Handle Producer Sync to Prompter
   useEffect(() => {
-    if (syncPrompterWithProducer && (currentView === "prompter" || currentView === "prompter")) {
+    if (syncPrompterWithProducer && currentView === "prompter") {
       const activeEl = prompterItemRefs.current[activeProducerIndex];
       if (activeEl && prompterRef.current) {
         prompterRef.current.scrollTo({
@@ -630,7 +644,7 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg md:text-xl font-black tracking-tight text-white">Run of Show Studio</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v5.0</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO v6.0</span>
             </div>
             <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -807,7 +821,7 @@ export default function App() {
                             const updated = segmentRepo.filter(i => i.id !== item.id);
                             setSegmentRepo(updated);
                             if (user && db) setDoc(doc(db, 'artifacts', appId, 'public', 'segment_repo'), { items: updated });
-                            else localStorage.setItem("ros_repo_v5", JSON.stringify(updated));
+                            else localStorage.setItem("ros_repo_v6", JSON.stringify(updated));
                           }} 
                           className="w-7 h-7 rounded-full bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold transition"
                           title="Delete"
@@ -949,7 +963,7 @@ export default function App() {
 
         return (
           <main className="max-w-6xl mx-auto animate-fade-in">
-            <div className={`flex flex-wrap items-center justify-between gap-4 mb-6 bg-slate-900 text-white p-6 rounded-2xl shadow-xl transition-all ${isFlashRed ? 'border-2 border-rose-500 animate-pulse' : isWarning ? 'border-2 border-amber-500' : 'border border-slate-800'}`}>
+            <div className={`flex flex-wrap items-center justify-between gap-4 mb-6 bg-slate-900 text-white p-6 rounded-2xl shadow-xl transition-all ${isFlashRed ? 'border-2 border-rose-500 animate-pulse' : isWarning ? 'border-2 border-amber-500 animate-pulse' : 'border border-slate-800'}`}>
               <div>
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 bg-indigo-500/20 px-2.5 py-1 rounded-full border border-indigo-500/30">Live Producer Control Room</span>
@@ -1018,13 +1032,13 @@ export default function App() {
                 <div className="flex gap-2 pt-6 border-t border-slate-800 mt-6">
                   <button 
                     onClick={() => setActiveProducerIndex(Math.max(0, activeProducerIndex - 1))}
-                    className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold transition"
+                    className="flex-1 bg-indigo-800 hover:bg-indigo-700 py-3 rounded-xl text-xs font-bold transition"
                   >
                     ◀ Previous Cue
                   </button>
                   <button 
                     onClick={() => setActiveProducerIndex(Math.min(activeTimedRundown.length - 1, activeProducerIndex + 1))}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 py-3 rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30"
+                    className="flex-1 bg-violet-600 hover:bg-violet-700 py-3 rounded-xl text-xs font-bold transition shadow-lg shadow-violet-600/30"
                   >
                     Next Cue ▶
                   </button>
@@ -1127,10 +1141,18 @@ export default function App() {
               </div>
             </header>
 
-            {/* Prompter Body Feed */}
-            <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-16 leading-relaxed w-full">
-              <div className="max-w-5xl mx-auto w-full">
-                <h1 className="text-3xl md:text-5xl font-black text-sky-400 mb-12 pb-6 border-b border-slate-800 tracking-tight" style={{ fontSize: `${prompterFontSize * 1.2}px` }}>{showTitle}</h1>
+            {/* Prompter Body Feed with global enforced font size normalization */}
+            <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-16 leading-relaxed w-full" style={{ fontSize: `${prompterFontSize}px` }}>
+              <style>{`
+                .prompter-content * {
+                  font-size: inherit !important;
+                  line-height: inherit !important;
+                  color: inherit !important;
+                  font-family: inherit !important;
+                }
+              `}</style>
+              <div className="max-w-5xl mx-auto w-full prompter-content">
+                <h1 className="font-black text-sky-400 mb-12 pb-6 border-b border-slate-800 tracking-tight" style={{ fontSize: `${prompterFontSize * 1.3}px` }}>{showTitle}</h1>
                 {activeTimedRundown.map((item, idx) => {
                   const isActive = activeProducerIndex === idx;
                   if (item.type === "block") {
@@ -1150,7 +1172,7 @@ export default function App() {
                       <div 
                         key={item.id || idx}
                         ref={el => { prompterItemRefs.current[idx] = el; }}
-                        style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff", fontSize: `${prompterFontSize}px` }} 
+                        style={{ backgroundColor: item.color, color: item.color === "#f59e0b" ? "#0f172a" : "#fff" }} 
                         className={`p-5 my-8 font-bold rounded-2xl shadow-xl transition-all ${isActive ? 'ring-4 ring-amber-400 scale-[1.02]' : ''}`}
                       >
                         [CUE {item.calculatedTime}] {item.title || 'Cue'} {item.talent ? `| Target: ${item.talent}` : ''}
@@ -1165,16 +1187,16 @@ export default function App() {
                         className={`mb-20 pb-10 border-b border-slate-800 transition-all p-4 rounded-2xl ${isActive ? 'bg-slate-900/80 border-amber-400/50 ring-2 ring-amber-400/40' : ''}`}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className={`font-mono font-bold text-lg md:text-xl ${isActive ? 'text-amber-400' : 'text-sky-400'}`} style={{ fontSize: `${prompterFontSize * 1.1}px` }}>
+                          <span className={`font-mono font-bold ${isActive ? 'text-amber-400' : 'text-sky-400'}`} style={{ fontSize: `${prompterFontSize * 1.1}px` }}>
                             {isActive ? '▶ ' : ''}[{item.calculatedTime}] {item.title || 'Segment'}
                           </span>
-                          <span className="text-xs font-mono text-slate-400">Dur: {item.min}m {item.sec}s</span>
+                          <span className="font-mono text-slate-400" style={{ fontSize: `${prompterFontSize * 0.8}px` }}>Dur: {item.min}m {item.sec}s</span>
                         </div>
-                        {item.talent && <div className="text-amber-400 font-semibold mb-4 text-base md:text-lg" style={{ fontSize: `${prompterFontSize * 0.9}px` }}>🎙️ {item.talent}</div>}
+                        {item.talent && <div className="text-amber-400 font-semibold mb-4" style={{ fontSize: `${prompterFontSize * 0.95}px` }}>🎙️ {item.talent}</div>}
                         <div 
-                          className="prose prose-invert max-w-none text-slate-100 font-medium"
-                          style={{ textTransform: item.isUpper ? 'uppercase' : 'none', fontSize: `${prompterFontSize}px`, lineHeight: '1.6' }}
-                          dangerouslySetInnerHTML={{ __html: item.script }} 
+                          className="text-slate-100 font-medium"
+                          style={{ textTransform: item.isUpper ? 'uppercase' : 'none', lineHeight: '1.6' }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeScriptHtml(item.script) }} 
                         />
                       </div>
                     );
@@ -1562,3 +1584,4 @@ export default function App() {
     </div>
   );
 }
+  );
