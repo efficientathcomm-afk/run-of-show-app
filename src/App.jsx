@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+<selection-tag>import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -1144,14 +1144,13 @@ export default function App() {
             {/* Prompter Body Feed with global enforced font size normalization */}
             <div ref={prompterRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-16 leading-relaxed w-full" style={{ fontSize: `${prompterFontSize}px` }}>
               <style>{`
-                .prompter-content * {
+                .prompter-script-body * {
                   font-size: inherit !important;
                   line-height: inherit !important;
-                  color: inherit !important;
                   font-family: inherit !important;
                 }
               `}</style>
-              <div className="max-w-5xl mx-auto w-full prompter-content">
+              <div className="max-w-5xl mx-auto w-full">
                 <h1 className="font-black text-sky-400 mb-12 pb-6 border-b border-slate-800 tracking-tight" style={{ fontSize: `${prompterFontSize * 1.3}px` }}>{showTitle}</h1>
                 {activeTimedRundown.map((item, idx) => {
                   const isActive = activeProducerIndex === idx;
@@ -1194,7 +1193,7 @@ export default function App() {
                         </div>
                         {item.talent && <div className="text-amber-400 font-semibold mb-4" style={{ fontSize: `${prompterFontSize * 0.95}px` }}>🎙️ {item.talent}</div>}
                         <div 
-                          className="text-slate-100 font-medium"
+                          className="text-slate-100 font-medium prompter-script-body"
                           style={{ textTransform: item.isUpper ? 'uppercase' : 'none', lineHeight: '1.6' }}
                           dangerouslySetInnerHTML={{ __html: sanitizeScriptHtml(item.script) }} 
                         />
@@ -1582,5 +1581,6 @@ export default function App() {
         </main>
       )}
     </div>
-  );
+   );
 }
+  );</selection-tag>
