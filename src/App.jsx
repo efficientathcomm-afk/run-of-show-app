@@ -73,6 +73,8 @@ export default function App() {
   // Production Shows List State
   const [showsList, setShowsList] = useState([]);
   const [activeShowId, setActiveShowId] = useState(null);
+  const activeShowIdRef = useRef(activeShowId);
+  activeShowIdRef.current = activeShowId;
   
   // Active Production State
   const [showTitle, setShowTitle] = useState("Grand Stage Production 2026");
@@ -158,7 +160,7 @@ export default function App() {
         setShowsList(list);
         if (list.length === 0) {
           createDefaultShow();
-        } else if (!activeShowId && list.length > 0) {
+        } else if (!activeShowIdRef.current && list.length > 0) {
           setActiveShowId(list[0].id);
         }
       } else {
@@ -246,11 +248,20 @@ export default function App() {
       ]
     };
     setActiveShowId(newId);
-    setShowsList([{ id: newId, title: titleInput, updatedAt: new Date().toISOString() }]);
+    const updatedList = [...showsList, { id: newId, title: titleInput, updatedAt: new Date().toISOString() }];
+    setShowsList(updatedList);
     setShowTitle(titleInput);
     setStartTime("09:00:00");
     setCustomColumns(newShow.customColumns);
     setRundown(newShow.rundown);
+
+    if (user && db) {
+      setDoc(doc(db, 'artifacts', appId, 'public', `show_${newId}`), newShow);
+      setDoc(doc(db, 'artifacts', appId, 'public', 'shows_index'), { shows: updatedList }, { merge: true });
+    } else {
+      localStorage.setItem("ros_shows_v6", JSON.stringify(updatedList));
+      localStorage.setItem(`ros_show_v6_${newId}`, JSON.stringify(newShow));
+    }
   };
 
   const createDefaultShow = async () => {
@@ -258,9 +269,10 @@ export default function App() {
   };
 
   const persistShow = async (newTitle = showTitle, newStart = startTime, newCols = customColumns, newRundown = rundown) => {
-    if (!activeShowId) return;
+    const currentId = activeShowIdRef.current;
+    if (!currentId) return;
     const showPayload = {
-      id: activeShowId,
+      id: currentId,
       showTitle: newTitle,
       startTime: newStart,
       customColumns: newCols,
@@ -270,21 +282,21 @@ export default function App() {
 
     // Always mirror locally as a fail-safe backup
     try {
-      localStorage.setItem(`ros_show_backup_${activeShowId}`, JSON.stringify(showPayload));
+      localStorage.setItem(`ros_show_backup_${currentId}`, JSON.stringify(showPayload));
     } catch (e) {}
 
     if (user && db) {
       try {
-        await setDoc(doc(db, 'artifacts', appId, 'public', `show_${activeShowId}`), showPayload);
+        await setDoc(doc(db, 'artifacts', appId, 'public', `show_${currentId}`), showPayload);
         const indexRef = doc(db, 'artifacts', appId, 'public', 'shows_index');
         const indexSnap = await getDoc(indexRef);
         let list = indexSnap.exists() ? (indexSnap.data().shows || []) : [];
-        const idx = list.findIndex(s => s.id === activeShowId);
+        const idx = list.findIndex(s => s.id === currentId);
         if (idx >= 0) {
           list[idx].title = newTitle;
           list[idx].updatedAt = showPayload.updatedAt;
         } else {
-          list.push({ id: activeShowId, title: newTitle, updatedAt: showPayload.updatedAt });
+          list.push({ id: currentId, title: newTitle, updatedAt: showPayload.updatedAt });
         }
         await setDoc(indexRef, { shows: list }, { merge: true });
       } catch (err) {
@@ -292,8 +304,8 @@ export default function App() {
       }
     } else {
       try {
-        localStorage.setItem(`ros_show_v6_${activeShowId}`, JSON.stringify(showPayload));
-        const updatedList = showsList.map(s => s.id === activeShowId ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s);
+        localStorage.setItem(`ros_show_v6_${currentId}`, JSON.stringify(showPayload));
+        const updatedList = showsList.map(s => s.id === currentId ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s);
         setShowsList(updatedList);
         localStorage.setItem("ros_shows_v6", JSON.stringify(updatedList));
       } catch (e) {}
@@ -1339,11 +1351,6 @@ export default function App() {
             <button onClick={addColumn} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">+ Add Column</button>
             <button onClick={() => { setActiveProducerIndex(0); setCurrentView("producer"); }} className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">⏱️ Producer</button>
             <button onClick={() => { setActiveProducerIndex(0); setCurrentView("prompter"); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">📺 Prompter</button>
-            <button onClick={exportShowJson} className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition">📥 Export JSON</button>
-            <label className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3.5 py-2 rounded-xl text-xs shadow transition cursor-pointer">
-              📤 Import JSON
-              <input type="file" accept=".json" onChange={importShowJson} className="hidden" />
-            </label>
             <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3.5 py-2 rounded-xl text-xs shadow transition">📄 Print PDF</button>
           </div>
 
