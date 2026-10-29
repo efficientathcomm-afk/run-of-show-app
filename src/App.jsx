@@ -68,7 +68,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [syncStatus, setSyncStatus] = useState("Connecting...");
   const [currentView, setCurrentView] = useState("editor"); // "editor" | "list" | "repo" | "prompter" | "producer"
-  const [themeMode, setThemeMode] = useState("dark"); // "dark" | "light"
+  const [themeMode, setThemeMode] = useState("light"); // "dark" | "light"
   
   // Production Shows List State
   const [showsList, setShowsList] = useState([]);
