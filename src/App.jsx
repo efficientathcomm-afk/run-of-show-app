@@ -268,6 +268,11 @@ export default function App() {
       updatedAt: new Date().toISOString()
     };
 
+    // Always mirror locally as a fail-safe backup
+    try {
+      localStorage.setItem(`ros_show_backup_${activeShowId}`, JSON.stringify(showPayload));
+    } catch (e) {}
+
     if (user && db) {
       try {
         await setDoc(doc(db, 'artifacts', appId, 'public', `show_${activeShowId}`), showPayload);
@@ -281,7 +286,6 @@ export default function App() {
         } else {
           list.push({ id: activeShowId, title: newTitle, updatedAt: showPayload.updatedAt });
         }
-        // Save index without modifying the activeShowId pointer
         await setDoc(indexRef, { shows: list }, { merge: true });
       } catch (err) {
         console.error("Cloud persist error:", err);
@@ -294,6 +298,68 @@ export default function App() {
         localStorage.setItem("ros_shows_v6", JSON.stringify(updatedList));
       } catch (e) {}
     }
+  };
+
+  // Export Show JSON Backup
+  const exportShowJson = () => {
+    const showData = {
+      showTitle,
+      startTime,
+      customColumns,
+      rundown,
+      exportedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(showData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${showTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_backup.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import Show JSON Backup
+  const importShowJson = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target.result);
+        if (!imported.showTitle || !Array.isArray(imported.rundown)) {
+          alert("Invalid rundown backup format.");
+          return;
+        }
+        const newId = "show_" + Date.now();
+        setActiveShowId(newId);
+        setShowTitle(imported.showTitle + " (Imported)");
+        setStartTime(imported.startTime || "09:00:00");
+        setCustomColumns(imported.customColumns || ["Audio / Cues", "Video / Slides", "Stage Notes"]);
+        setRundown(imported.rundown);
+        
+        const newShowEntry = { id: newId, title: imported.showTitle + " (Imported)", updatedAt: new Date().toISOString() };
+        const updatedList = [...showsList, newShowEntry];
+        setShowsList(updatedList);
+
+        if (user && db) {
+          setDoc(doc(db, 'artifacts', appId, 'public', `show_${newId}`), {
+            id: newId,
+            showTitle: imported.showTitle + " (Imported)",
+            startTime: imported.startTime || "09:00:00",
+            customColumns: imported.customColumns || ["Audio", "Video"],
+            rundown: imported.rundown,
+            updatedAt: new Date().toISOString()
+          });
+          setDoc(doc(db, 'artifacts', appId, 'public', 'shows_index'), { shows: updatedList }, { merge: true });
+        } else {
+          localStorage.setItem("ros_shows_v6", JSON.stringify(updatedList));
+        }
+        alert("Rundown successfully imported!");
+      } catch (err) {
+        alert("Failed to parse JSON file.");
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleCreateShowPrompt = () => {
@@ -1273,6 +1339,11 @@ export default function App() {
             <button onClick={addColumn} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">+ Add Column</button>
             <button onClick={() => { setActiveProducerIndex(0); setCurrentView("producer"); }} className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">⏱️ Producer</button>
             <button onClick={() => { setActiveProducerIndex(0); setCurrentView("prompter"); }} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition flex items-center gap-1.5">📺 Prompter</button>
+            <button onClick={exportShowJson} className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow transition">📥 Export JSON</button>
+            <label className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3.5 py-2 rounded-xl text-xs shadow transition cursor-pointer">
+              📤 Import JSON
+              <input type="file" accept=".json" onChange={importShowJson} className="hidden" />
+            </label>
             <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3.5 py-2 rounded-xl text-xs shadow transition">📄 Print PDF</button>
           </div>
 
