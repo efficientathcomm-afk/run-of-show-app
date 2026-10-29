@@ -281,7 +281,8 @@ export default function App() {
         } else {
           list.push({ id: activeShowId, title: newTitle, updatedAt: showPayload.updatedAt });
         }
-        await setDoc(indexRef, { shows: list });
+        // Save index without modifying the activeShowId pointer
+        await setDoc(indexRef, { shows: list }, { merge: true });
       } catch (err) {
         console.error("Cloud persist error:", err);
       }
